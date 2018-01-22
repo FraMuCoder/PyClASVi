@@ -27,6 +27,7 @@
 #   Output all other used class types
 #   Add a history like a web browser
 
+import sys
 import ttk
 import Tkinter as tk
 import tkFont
@@ -86,8 +87,8 @@ class InputFrame(ttk.Frame):
         self.parseButton = ttk.Button(buttonFrame, text='Parse', command=self.parseCmd)
         self.parseButton.grid(row=0, column=2, sticky='we')
     
-    def on_file_load(self):
-        f = tkFileDialog.askopenfile(filetypes=self._filetypes)
+    def load_filename(self, filename):
+        f = open(filename, 'r')
         if f:
             data = f.read()
             f.close()
@@ -95,6 +96,10 @@ class InputFrame(ttk.Frame):
             if len(lines) > 0:
                 self.set_filename(lines[0])
             self.set_args(lines[1:])
+    
+    def on_file_load(self):
+        fn = tkFileDialog.askopenfilename(filetypes=self._filetypes)
+        self.load_filename(fn)
     
     def on_file_save(self):
         f = tkFileDialog.asksaveasfile(defaultextension=".txt", filetypes=self._filetypes)
@@ -489,18 +494,22 @@ class OutputFrame(ttk.Frame):
 
 # Main window combine all frames in tabs an contains glue logic between these frames
 class Application(ttk.Frame):
-    def __init__(self, master=None):
+    def __init__(self, master=None, args=[]):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.create_widgets()
         
         self.index = clang.cindex.Index.create()
         
-        self.inputFrame.set_filename("select file to parse =>")
-        self.inputFrame.set_args(["-xc++",
-                                  "-std=c++14",
-                                  "-I/your/include/path",
-                                  "-I/more/include/path"])
+        if len(args) > 0:
+            self.inputFrame.load_filename(args[0])
+        else:
+            self.inputFrame.set_filename("select file to parse =>")
+            self.inputFrame.set_args(["-xc++",
+                                      "-std=c++14",
+                                      "-I/your/include/path",
+                                      "-I/more/include/path"])
+
 
     def create_widgets(self):
         top=self.winfo_toplevel()
@@ -535,6 +544,6 @@ class Application(ttk.Frame):
         self.outputFrame.set_translationunit(tu)
 
 
-app = Application()
+app = Application(args=sys.argv[1:])
 app.master.title('PyClASVi')
 app.mainloop()
