@@ -14,7 +14,6 @@
 #   Check coding style
 #   Add documentation "How to access Clang AST"
 # Input frame
-#   Add save/load input
 #   Add buttons for input language and language version
 # Error frame
 #   Filter for severity level
@@ -46,6 +45,11 @@ class InputFrame(ttk.Frame):
         self.filename = tk.StringVar(value="")
         self.create_widgets()
 
+    _filetypes = [
+        ("Text files", "*.txt", "TEXT"),
+        ("All files", "*"),
+        ]
+
     def create_widgets(self):
         self.rowconfigure(4, weight=1)
         self.columnconfigure(0, weight=1)
@@ -68,9 +72,37 @@ class InputFrame(ttk.Frame):
         self.defineButton.grid(row=0, column=1)
         self.argsText = tk.Text(self)
         self.argsText.grid(row=4, sticky='nswe')
+
+        buttonFrame = ttk.Frame(self)
+        buttonFrame.grid(row=5, column=0, sticky='we')
+        buttonFrame.columnconfigure(2, weight=1)
+
+        self.parseButton = ttk.Button(buttonFrame, text='Load', command=self.on_file_load)
+        self.parseButton.grid(row=0, column=0)
         
-        self.parseButton = ttk.Button(self, text='Parse', command=self.parseCmd)
-        self.parseButton.grid(row=5, column=0, sticky='swe')
+        self.parseButton = ttk.Button(buttonFrame, text='Save', command=self.on_file_save)
+        self.parseButton.grid(row=0, column=1)
+        
+        self.parseButton = ttk.Button(buttonFrame, text='Parse', command=self.parseCmd)
+        self.parseButton.grid(row=0, column=2, sticky='we')
+    
+    def on_file_load(self):
+        f = tkFileDialog.askopenfile(filetypes=self._filetypes)
+        if f:
+            data = f.read()
+            f.close()
+            lines = data.split("\n")
+            if len(lines) > 0:
+                self.set_filename(lines[0])
+            self.set_args(lines[1:])
+    
+    def on_file_save(self):
+        f = tkFileDialog.asksaveasfile(defaultextension=".txt", filetypes=self._filetypes)
+        if f:
+            f.write(self.get_filename() + '\n')
+            for arg in self.get_args():
+                f.write(arg + '\n')
+            f.close()
     
     def on_select_file(self):
         fn = tkFileDialog.askopenfilename()
