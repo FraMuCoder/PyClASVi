@@ -283,6 +283,9 @@ class ASTOutputFrame(ttk.Frame):
             curCursor = self.cursorMap[curItem]
         return curCursor
     
+    def set_current_cursor(self, cursor):
+        print(cursor.hash)
+    
     def clear(self):
         for i in self.astView.get_children():
             self.astView.delete(i)
@@ -301,11 +304,13 @@ class ASTOutputFrame(ttk.Frame):
 
 # Output nearly all members of the selected Cursor object
 class CursorOutputFrame(ttk.Frame):
-    def __init__(self, master=None):
+    def __init__(self, master=None, selectCmd=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.create_widgets()
         self.cursor = None
+        self.selectCmd = selectCmd
+        self.cursorList = []
     
     # ignore member with this types
     _ignore_types = ('function',)
@@ -351,13 +356,31 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.tag_configure('attr_type', foreground='green')
         self.cursorText.tag_configure('attr_err', foreground='red')
         self.cursorText.tag_configure('link', foreground='blue')
+        self.cursorText.tag_bind('link', '<ButtonPress-1>', self.on_cursor_click)
         self.cursorText.config(state='disabled')
+
+    def on_cursor_click(self, event):
+        if self.selectCmd == None:
+            return
+
+        curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
+        linkIdxs = list(self.cursorText.tag_ranges('link'))
+        listIdx = 0
+
+        for start, end in zip(linkIdxs[0::2], linkIdxs[1::2]):
+            if (self.cursorText.compare(curIdx, '>=', start) and
+                self.cursorText.compare(curIdx, '<', end)):
+                cursor = self.cursorList[listIdx]
+                self.selectCmd(cursor)
+                break
+            listIdx += 1
 
     def clear(self):
         self.cursorText.config(state='normal')
         self.cursorText.delete('1.0', 'end')
         self.cursorText.config(state='disabled')
         self.cursor = None
+        self.cursorList = []
 
     def _add_cursor(self, cursor):
         # we got an exception if we compare a Cursor object with an other none Cursor object like None
@@ -365,12 +388,13 @@ class CursorOutputFrame(ttk.Frame):
         try:
             self.cursorText.insert('end', 
                                 'Cursor ' + 
-                                str(id(cursor)) + 
+                                str(cursor.hash) + 
                                 ' ' +
                                 cursor.kind.name + 
                                 ' / ' + 
                                 cursor.displayname, 
                                 'link')
+            self.cursorList.append(cursor)
         except:
             if cursor == None:
                 self.cursorText.insert('end', 'None')
@@ -429,6 +453,7 @@ class CursorOutputFrame(ttk.Frame):
     def set_cursor(self, c):
         if id(self.cursor) == id(c):
             return
+        self.cursorList = []
         self.cursor = c
         self.cursorText.config(state='normal')
         self.cursorText.delete('1.0', 'end')
@@ -476,7 +501,8 @@ class OutputFrame(ttk.Frame):
         self.astOutputFrame = ASTOutputFrame(pw1, selectCmd=self.on_cursor_selection)
         pw1.add(self.astOutputFrame)
         
-        self.cursorOutputFrame = CursorOutputFrame(pw1)
+        self.cursorOutputFrame = CursorOutputFrame(pw1, 
+                                                   selectCmd=self.astOutputFrame.set_current_cursor)
         pw1.add(self.cursorOutputFrame)
     
     def on_cursor_selection(self):
