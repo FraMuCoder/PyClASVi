@@ -36,6 +36,19 @@ import clang.cindex
 import ctypes
 
 
+# Cursor objects have a hash property but no __hash__ methode
+# You can use this class to make Cursor object hashable
+class HashableObj:
+    def __init__(self, obj):
+        self.obj = obj
+    
+    def __eq__(self, other):
+        return self.obj == other.obj
+    
+    def __hash__(self):
+        return self.obj.hash
+
+
 # Handle all inputs (file name and parameters)
 # Contain [Parse] Button to start parsing and fill result in output frames
 class InputFrame(ttk.Frame):
@@ -229,7 +242,8 @@ class ASTOutputFrame(ttk.Frame):
         self.grid(sticky='nswe')
         self.create_widgets()
         self.translationunit = None
-        self.cursorMap = {}
+        self.mapIIDtoCursor = {}
+        self.mapCursorToIID = {}
         self.selectCmd = selectCmd
 
     def create_widgets(self):
@@ -259,17 +273,6 @@ class ASTOutputFrame(ttk.Frame):
     
     def on_selection(self, event):
         curItem = self.astView.focus()
-        if curItem:
-            #vals = self.astView.item(curItem)
-            childItems = self.astView.get_children(curItem)
-            if len(childItems) == 0:
-                curCursor = self.cursorMap[curItem]
-                for childCursor in curCursor.get_children():
-                    iid = self.astView.insert(curItem, 
-                                              'end', 
-                                              text=childCursor.kind.name, 
-                                              values=[childCursor.displayname])
-                    self.cursorMap[iid] = childCursor
         if self.selectCmd:
             self.selectCmd()
     
@@ -280,7 +283,7 @@ class ASTOutputFrame(ttk.Frame):
         curCursor = None
         curItem = self.astView.focus()
         if curItem:
-            curCursor = self.cursorMap[curItem]
+            curCursor = self.mapIIDtoCursor[curItem]
         return curCursor
     
     def set_current_cursor(self, cursor):
@@ -290,16 +293,30 @@ class ASTOutputFrame(ttk.Frame):
         for i in self.astView.get_children():
             self.astView.delete(i)
         self.translationunit = None
-        self.cursorMap = {}
+        self.mapIIDtoCursor = {}
+        self.mapCursorToIID = {}
+    
+    def _insert_children(self, cursor, iid):
+        for childCursor in cursor.get_children():
+            newIID = self.astView.insert(iid, 
+                                        'end', 
+                                        text=childCursor.kind.name, 
+                                        values=[childCursor.displayname])
+            self.mapIIDtoCursor[newIID] = childCursor
+            self.mapCursorToIID[HashableObj(childCursor)] = newIID
+            self._insert_children(childCursor, newIID)
     
     def set_translationunit(self, tu):
+        self.clear()
         self.translationunit = tu
         root = tu.cursor
         iid = self.astView.insert('', 
                                   'end', 
                                   text=root.kind.name, 
                                   values=[root.displayname])
-        self.cursorMap[iid] = root
+        self.mapIIDtoCursor[iid] = root
+        self.mapCursorToIID[HashableObj(root)] = iid
+        self._insert_children(root, iid)
 
 
 # Output nearly all members of the selected Cursor object
