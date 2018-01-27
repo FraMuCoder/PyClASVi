@@ -287,7 +287,10 @@ class ASTOutputFrame(ttk.Frame):
         return curCursor
     
     def set_current_cursor(self, cursor):
-        print(cursor.hash)
+        iid = self.mapCursorToIID[HashableObj(cursor)]
+        self.astView.focus(iid)
+        self.astView.selection_set(iid)
+        self.astView.see(iid)
     
     def clear(self):
         for i in self.astView.get_children():
@@ -468,8 +471,12 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.insert('end', '\n\n')
 
     def set_cursor(self, c):
-        if id(self.cursor) == id(c):
+        if not isinstance(c, clang.cindex.Cursor):
+            self.clear()
             return
+        if isinstance(self.cursor, clang.cindex.Cursor):
+            if self.cursor == c:
+                return
         self.cursorList = []
         self.cursor = c
         self.cursorText.config(state='normal')
