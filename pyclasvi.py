@@ -20,7 +20,6 @@
 #   Colored output depends on severity
 #   Add source panel to show location
 # Output frame
-#   Jump to Cursor clicked on the right (blue outputs)
 #   Add source panel to show location
 #   Add missing member outputs (see comments in class CursorOutputFrame)
 #   Output Tokens
@@ -377,7 +376,15 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.tag_configure('attr_err', foreground='red')
         self.cursorText.tag_configure('link', foreground='blue')
         self.cursorText.tag_bind('link', '<ButtonPress-1>', self.on_cursor_click)
+        self.cursorText.tag_bind('link', '<Enter>', self.on_link_enter)
+        self.cursorText.tag_bind('link', '<Leave>', self.on_link_leave)
         self.cursorText.config(state='disabled')
+
+    def on_link_enter(self, event):
+        self.cursorText.configure(cursor='hand1')
+
+    def on_link_leave(self, event):
+        self.cursorText.configure(cursor='arrow')
 
     def on_cursor_click(self, event):
         if self.selectCmd == None:
