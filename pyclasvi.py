@@ -14,6 +14,7 @@
 #   Check coding style
 #   Add documentation "How to access Clang AST"
 # Input frame
+#   Add input for Config.set_library_file
 #   Add buttons for input language and language version
 # Error frame
 #   Filter for severity level

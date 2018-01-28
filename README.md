@@ -9,16 +9,14 @@ It will not yet run with Python 3 and not all Clang versions.
 
 ## Getting Started
 
-First you need to install Clang and Clang Indexing Library Bindings for Python.
-The last line is necessary for the Python module to find the library.
+First you need to install Clang, Clang Indexing Library Bindings for Python and tk for Python.
 
-    apt-get install clang-3.8 python-pip
-    pip install clang==3.8
-    ln -s /usr/lib/x86_64-linux-gnu/libclang-3.8.so.1 /usr/lib/libclang.so
+    sudo apt-get install clang-3.8 python-clang-3.8 python-tk
 
-Instead of using PIP you can install Ubuntu's package of Python Clang binding.
-
-    apt-get install python-clang-3.8
+Clang Python binding is looking for libclang.so but there is no such file installed by Ubuntu 14.04.
+You can create a link to solve this problem.
+    
+    sudo ln -s /usr/lib/llvm-3.8/lib/libclang-3.8.so.1 /usr/lib/libclang.so
 
 To run PyClASVi just call `pyclasvi.py`.
 
