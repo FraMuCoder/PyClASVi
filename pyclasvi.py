@@ -21,7 +21,6 @@
 #   Colored output depends on severity
 #   Add source panel to show location
 # Output frame
-#   Add source panel to show location
 #   Add missing member outputs (see comments in class CursorOutputFrame)
 #   Output Tokens
 #   Output all other used class types
@@ -513,6 +512,77 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.config(state='disabled')
 
 
+class FileOutputFrame(ttk.Frame):
+    def __init__(self, master=None):
+        ttk.Frame.__init__(self, master)
+        self.grid(sticky='nswe')
+        self.create_widgets()
+        self.srcRange = None
+        self.srcLocation = None
+
+    def create_widgets(self):
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+        
+        self.fileText = tk.Text(self)
+        self.fileText.grid(row=0, sticky='nswe')
+        self.fileText.tag_configure('range', background='gray')
+        self.fileText.tag_configure('location', background='yellow')
+        
+        vsb = ttk.Scrollbar(self, orient="vertical",command=self.fileText.yview)
+        self.fileText.configure(yscrollcommand=vsb.set)
+        vsb.grid(row=0, column=1, sticky='ns')
+        
+        hsb = ttk.Scrollbar(self, orient="horizontal",command=self.fileText.xview)
+        self.fileText.configure(xscrollcommand=hsb.set)
+        hsb.grid(row=1, column=0, sticky='we')
+        
+        self.fileText.config(state='disabled')
+    
+    def clear(self):
+        self.fileText.config(state='normal')
+        self.fileText.delete('1.0', 'end')
+        self.fileText.config(state='disabled')
+        self.srcRange = None
+        self.srcLocation = None
+    
+    def set_location(self, srcRange, srcLocation):
+        self.fileText.config(state='normal')
+        oldFileName = ''
+        newFileName = srcRange.start.file.name
+        
+        if isinstance(self.srcRange, clang.cindex.SourceRange):
+            oldFileName = self.srcRange.start.file.name
+        
+        self.fileText.tag_remove('range', '1.0', 'end')
+        self.fileText.tag_remove('location', '1.0', 'end')
+        
+        if oldFileName != newFileName:
+            self.fileText.delete('1.0', 'end')
+            f = open(newFileName, 'r')
+            if f:
+                data = f.read()
+                f.close()
+                self.fileText.insert('end', data)
+        
+        srcFrom =  '{0}.{1}'.format(srcRange.start.line, srcRange.start.column-1)
+        srcTo =  '{0}.{1}'.format(srcRange.end.line, srcRange.end.column)
+        self.fileText.tag_add('range', srcFrom, srcTo)
+        self.fileText.see(srcFrom)
+        
+        if isinstance(srcLocation, clang.cindex.SourceLocation):
+            if srcLocation.file:
+                locFrom =  '{0}.{1}'.format(srcLocation.line, srcLocation.column-1)
+                locTo =  '{0}.{1}'.format(srcLocation.line, srcLocation.column)
+                self.fileText.tag_add('location', locFrom, locTo)
+                self.fileText.see(locFrom)
+        
+        self.srcRange = srcRange
+        self.srcLocation = srcLocation
+        
+        self.fileText.config(state='disabled')
+
+
 # Output frame shows the AST on the left and the selected Cursor on the right
 class OutputFrame(ttk.Frame):
     def __init__(self, master=None):
@@ -525,25 +595,32 @@ class OutputFrame(ttk.Frame):
         self.columnconfigure(0, weight=1)
         
         # ttk version of PanedWindow do not support all options
-        pw1 = tk.PanedWindow(self, orient='horizontal',
-                             showhandle=1, handlepad=1, handlesize=8, 
-                             sashwidth=2, opaqueresize=1, sashrelief='sunken')
+        pw1 = tk.PanedWindow(self, orient='horizontal')
         pw1.grid(row=0, column=0, sticky='nswe')
         
         self.astOutputFrame = ASTOutputFrame(pw1, selectCmd=self.on_cursor_selection)
-        pw1.add(self.astOutputFrame)
+        pw1.add(self.astOutputFrame, stretch="always")
         
-        self.cursorOutputFrame = CursorOutputFrame(pw1, 
+        pw2 = tk.PanedWindow(pw1, orient='vertical')
+        
+        self.cursorOutputFrame = CursorOutputFrame(pw2, 
                                                    selectCmd=self.astOutputFrame.set_current_cursor)
-        pw1.add(self.cursorOutputFrame)
+        pw2.add(self.cursorOutputFrame, stretch="always")
+        
+        self.fileOutputFrame = FileOutputFrame(pw2)
+        pw2.add(self.fileOutputFrame, stretch="always")
+        
+        pw1.add(pw2, stretch="always")
     
     def on_cursor_selection(self):
         cur = self.astOutputFrame.get_current_cursor()
         self.cursorOutputFrame.set_cursor(cur)
+        self.fileOutputFrame.set_location(cur.extent, cur.location)
     
     def clear(self):
-        self.astOutputFrame.clear();
-        self.cursorOutputFrame.clear();
+        self.astOutputFrame.clear()
+        self.cursorOutputFrame.clear()
+        self.fileOutputFrame.clear()
         
     def set_translationunit(self, tu):
         self.clear()
