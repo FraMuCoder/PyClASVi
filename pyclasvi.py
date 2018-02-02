@@ -48,6 +48,18 @@ class HashableObj:
         return self.obj.hash
 
 
+# need parent widget and widget witch should be make_scrollable
+# Ther should be only this one widget in the parent
+def make_scrollable(parent, widget, widgetRow=0, widgetColumn=0):
+        vsb = ttk.Scrollbar(parent, orient="vertical",command=widget.yview)
+        widget.configure(yscrollcommand=vsb.set)
+        vsb.grid(row=widgetRow, column=widgetColumn+1, sticky='ns')
+        
+        hsb = ttk.Scrollbar(parent, orient="horizontal",command=widget.xview)
+        widget.configure(xscrollcommand=hsb.set)
+        hsb.grid(row=widgetRow+1, column=widgetColumn, sticky='we')
+
+
 # Handle all inputs (file name and parameters)
 # Contain [Parse] Button to start parsing and fill result in output frames
 class InputFrame(ttk.Frame):
@@ -70,7 +82,7 @@ class InputFrame(ttk.Frame):
         ttk.Label(self, text='Input file:').grid(row=0, sticky='w')
         fileFrame = ttk.Frame(self)
         fileFrame.columnconfigure(0, weight=1)
-        fileFrame.grid(row=1, column=0, sticky='we')
+        fileFrame.grid(row=1, column=0, columnspan=2, sticky='we')
         self.filenameEntry = ttk.Entry(fileFrame, textvariable=self.filename)
         self.filenameEntry.grid(row=0, column=0, sticky='we')
         self.selectFileButton = ttk.Button(fileFrame, text='...', command=self.on_select_file)
@@ -78,16 +90,17 @@ class InputFrame(ttk.Frame):
         
         ttk.Label(self, text='Arguments:').grid(row=2, sticky='w')
         buttonFrame = ttk.Frame(self)
-        buttonFrame.grid(row=3, column=0, sticky='we')
+        buttonFrame.grid(row=3, column=0, columnspan=2, sticky='we')
         self.includeButton = ttk.Button(buttonFrame, text='+ Include', command=self.on_include)
         self.includeButton.grid()#(row=0, column=0)
         self.defineButton = ttk.Button(buttonFrame, text='+ Define', command=self.on_define)
         self.defineButton.grid(row=0, column=1)
         self.argsText = tk.Text(self)
         self.argsText.grid(row=4, sticky='nswe')
+        make_scrollable(self, self.argsText, widgetRow=4, widgetColumn=0)
 
         buttonFrame = ttk.Frame(self)
-        buttonFrame.grid(row=5, column=0, sticky='we')
+        buttonFrame.grid(row=6, column=0, columnspan=2, sticky='we')
         buttonFrame.columnconfigure(2, weight=1)
 
         self.parseButton = ttk.Button(buttonFrame, text='Load', command=self.on_file_load)
@@ -183,13 +196,7 @@ class ErrorFrame(ttk.Frame):
         
         self.errorTable = ttk.Treeview(self, columns=('category', 'severity', 'spelling', 'location'))
         
-        vsb = ttk.Scrollbar(self, orient="vertical",command=self.errorTable.yview)
-        self.errorTable.configure(yscrollcommand=vsb.set)
-        vsb.grid(row=0, column=1, sticky='ns')
-        
-        hsb = ttk.Scrollbar(self, orient="horizontal",command=self.errorTable.xview)
-        self.errorTable.configure(xscrollcommand=hsb.set)
-        hsb.grid(row=1, column=0, sticky='we')
+        make_scrollable(self, self.errorTable)
         
         self.errorTable.heading('#0', text='#')
         self.errorTable.column('#0', width=4*charSize, anchor='e', stretch=False)
@@ -256,13 +263,7 @@ class ASTOutputFrame(ttk.Frame):
                                     selectmode='browse')
         self.astView.bind('<<TreeviewSelect>>', self.on_selection)
         
-        vsb = ttk.Scrollbar(self, orient="vertical",command=self.astView.yview)
-        self.astView.configure(yscrollcommand=vsb.set)
-        vsb.grid(row=0, column=1, sticky='ns')
-        
-        hsb = ttk.Scrollbar(self, orient="horizontal",command=self.astView.xview)
-        self.astView.configure(xscrollcommand=hsb.set)
-        hsb.grid(row=1, column=0, sticky='we')
+        make_scrollable(self, self.astView)
         
         self.astView.heading('#0', text='Kind')
         self.astView.column('#0', width=20*charSize, stretch=False)
@@ -363,13 +364,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText = tk.Text(self)
         self.cursorText.grid(row=0, sticky='nswe')
         
-        vsb = ttk.Scrollbar(self, orient="vertical",command=self.cursorText.yview)
-        self.cursorText.configure(yscrollcommand=vsb.set)
-        vsb.grid(row=0, column=1, sticky='ns')
-        
-        hsb = ttk.Scrollbar(self, orient="horizontal",command=self.cursorText.xview)
-        self.cursorText.configure(xscrollcommand=hsb.set)
-        hsb.grid(row=1, column=0, sticky='we')
+        make_scrollable(self, self.cursorText)
         
         self.cursorText.tag_configure('attr_name', font=(defFontProp['family'], defFontProp['size'], 'bold'))
         self.cursorText.tag_configure('attr_type', foreground='green')
@@ -529,13 +524,7 @@ class FileOutputFrame(ttk.Frame):
         self.fileText.tag_configure('range', background='gray')
         self.fileText.tag_configure('location', background='yellow')
         
-        vsb = ttk.Scrollbar(self, orient="vertical",command=self.fileText.yview)
-        self.fileText.configure(yscrollcommand=vsb.set)
-        vsb.grid(row=0, column=1, sticky='ns')
-        
-        hsb = ttk.Scrollbar(self, orient="horizontal",command=self.fileText.xview)
-        self.fileText.configure(xscrollcommand=hsb.set)
-        hsb.grid(row=1, column=0, sticky='we')
+        make_scrollable(self, self.fileText)
         
         self.fileText.config(state='disabled')
     
