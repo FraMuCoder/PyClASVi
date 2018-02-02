@@ -19,12 +19,12 @@
 # Error frame
 #   Filter for severity level
 #   Colored output depends on severity
-#   Add source panel to show location
 # Output frame
 #   Add missing member outputs (see comments in class CursorOutputFrame)
 #   Output Tokens
 #   Output all other used class types
 #   Add a history like a web browser
+#   Add search function
 
 import sys
 import ttk
@@ -187,6 +187,7 @@ class ErrorFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.create_widgets()
+        self.errorMap = {}
 
     def create_widgets(self):
         self.rowconfigure(0, weight=1)
@@ -194,9 +195,17 @@ class ErrorFrame(ttk.Frame):
         
         charSize = tkFont.nametofont('TkHeadingFont').measure('#')
         
-        self.errorTable = ttk.Treeview(self, columns=('category', 'severity', 'spelling', 'location'))
+        pw = tk.PanedWindow(self, orient='vertical')
+        pw.grid(row=0, column=0, sticky='nswe')
         
-        make_scrollable(self, self.errorTable)
+        frame = ttk.Frame(pw)
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        self.errorTable = ttk.Treeview(frame, columns=('category', 'severity', 'spelling', 'location'))
+        self.errorTable.bind('<<TreeviewSelect>>', self.on_selection)
+        self.errorTable.grid(row=0, column=0, sticky='nswe')
+        make_scrollable(frame, self.errorTable)
+        pw.add(frame, stretch="always")
         
         self.errorTable.heading('#0', text='#')
         self.errorTable.column('#0', width=4*charSize, anchor='e', stretch=False)
@@ -208,9 +217,21 @@ class ErrorFrame(ttk.Frame):
         self.errorTable.column('spelling', width=40*charSize, stretch=False)
         self.errorTable.heading('location', text='Location')
         self.errorTable.column('location', width=40*charSize, stretch=False)
-        self.errorTable.grid(row=0, column=0, sticky='nswe')
+        
+        self.fileOutputFrame = FileOutputFrame(pw)
+        pw.add(self.fileOutputFrame, stretch="always")
 
+    def on_selection(self, event):
+        curItem = self.errorTable.focus()
+        err = self.errorMap[curItem]
+        range1 = None
+        for r in err.ranges:
+            range1 = r
+            break
+        self.fileOutputFrame.set_location(range1, err.location)
+    
     def clear_errors(self):
+        self.errorMap = {}
         for i in self.errorTable.get_children():
             self.errorTable.delete(i)
     
@@ -233,12 +254,13 @@ class ErrorFrame(ttk.Frame):
                 location = err.location.file.name + ' ' + str(err.location.line) + ':' + str(err.location.offset)
             else:
                 location = None
-            self.errorTable.insert('', 'end', text=str(cnt), values=[
+            iid = self.errorTable.insert('', 'end', text=str(cnt), values=[
                 str(err.category_number) + ' ' + err.category_name,
                 serverity,
                 err.spelling,
                 location
                 ])
+            self.errorMap[iid] = err
 
 
 # Output the AST in a Treeview like folders in a file browser
@@ -272,7 +294,7 @@ class ASTOutputFrame(ttk.Frame):
         self.astView.grid(row=0, column=0, sticky='nswe')
     
     def on_selection(self, event):
-        curItem = self.astView.focus()
+        #curItem = self.astView.focus()
         if self.selectCmd:
             self.selectCmd()
     
@@ -512,8 +534,7 @@ class FileOutputFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.create_widgets()
-        self.srcRange = None
-        self.srcLocation = None
+        self.fileName = None
 
     def create_widgets(self):
         self.rowconfigure(0, weight=1)
@@ -532,21 +553,23 @@ class FileOutputFrame(ttk.Frame):
         self.fileText.config(state='normal')
         self.fileText.delete('1.0', 'end')
         self.fileText.config(state='disabled')
-        self.srcRange = None
-        self.srcLocation = None
+        self.fileName = None
     
     def set_location(self, srcRange, srcLocation):
         self.fileText.config(state='normal')
-        oldFileName = ''
-        newFileName = srcRange.start.file.name
-        
-        if isinstance(self.srcRange, clang.cindex.SourceRange):
-            oldFileName = self.srcRange.start.file.name
-        
         self.fileText.tag_remove('range', '1.0', 'end')
         self.fileText.tag_remove('location', '1.0', 'end')
+
+        newFileName = None
+        if isinstance(srcRange, clang.cindex.SourceRange):
+            newFileName = srcRange.start.file.name
+        elif (isinstance(srcLocation, clang.cindex.SourceLocation) and
+              srcLocation.file):
+            newFileName = srcLocation.file.name
+        else:
+            self.fileText.delete('1.0', 'end')
         
-        if oldFileName != newFileName:
+        if newFileName and (self.fileName != newFileName):
             self.fileText.delete('1.0', 'end')
             f = open(newFileName, 'r')
             if f:
@@ -554,10 +577,13 @@ class FileOutputFrame(ttk.Frame):
                 f.close()
                 self.fileText.insert('end', data)
         
-        srcFrom =  '{0}.{1}'.format(srcRange.start.line, srcRange.start.column-1)
-        srcTo =  '{0}.{1}'.format(srcRange.end.line, srcRange.end.column)
-        self.fileText.tag_add('range', srcFrom, srcTo)
-        self.fileText.see(srcFrom)
+        self.fileName = newFileName
+        
+        if isinstance(srcRange, clang.cindex.SourceRange):
+            srcFrom =  '{0}.{1}'.format(srcRange.start.line, srcRange.start.column-1)
+            srcTo =  '{0}.{1}'.format(srcRange.end.line, srcRange.end.column)
+            self.fileText.tag_add('range', srcFrom, srcTo)
+            self.fileText.see(srcFrom)
         
         if isinstance(srcLocation, clang.cindex.SourceLocation):
             if srcLocation.file:
@@ -565,9 +591,6 @@ class FileOutputFrame(ttk.Frame):
                 locTo =  '{0}.{1}'.format(srcLocation.line, srcLocation.column)
                 self.fileText.tag_add('location', locFrom, locTo)
                 self.fileText.see(locFrom)
-        
-        self.srcRange = srcRange
-        self.srcLocation = srcLocation
         
         self.fileText.config(state='disabled')
 
