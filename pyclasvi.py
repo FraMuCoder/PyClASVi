@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 # Python ClASVi
 # Python Clang AST Viewer
@@ -9,7 +9,6 @@
 # General
 #   Test unter Windows
 #   Test/fix Clang versions > 3.8
-#   Test/fix Python 3
 #   Better code documentation
 #   Check coding style
 #   Add documentation "How to access Clang AST"
@@ -27,12 +26,29 @@
 #   Add search function
 
 import sys
-import ttk
-import Tkinter as tk
-import tkFont
-import tkFileDialog
+
+if sys.version_info.major == 2:
+    import ttk
+    import Tkinter as tk
+    import tkFont
+    import tkFileDialog
+else: # python3
+    import tkinter.ttk as ttk
+    import tkinter as tk
+    import tkinter.font as tkFont
+    import tkinter.filedialog as tkFileDialog
+
 import clang.cindex
 import ctypes
+
+
+# Python3 clang binding sometimes return bytes instead of strings
+# use this function to convert it
+def toStr(data):
+    if isinstance(data, bytes):
+        return data.decode('ascii') # ASCII should be default in C/C++ but what about comments
+    else:
+        return str(data)
 
 
 # Cursor objects have a hash property but no __hash__ methode
@@ -255,7 +271,7 @@ class ErrorFrame(ttk.Frame):
             else:
                 location = None
             iid = self.errorTable.insert('', 'end', text=str(cnt), values=[
-                str(err.category_number) + ' ' + err.category_name,
+                str(err.category_number) + ' ' + toStr(err.category_name),
                 serverity,
                 err.spelling,
                 location
@@ -323,10 +339,10 @@ class ASTOutputFrame(ttk.Frame):
     
     def _insert_children(self, cursor, iid):
         for childCursor in cursor.get_children():
-            newIID = self.astView.insert(iid, 
-                                        'end', 
-                                        text=childCursor.kind.name, 
-                                        values=[childCursor.displayname])
+            newIID = self.astView.insert(iid,
+                                        'end',
+                                        text=childCursor.kind.name,
+                                        values=[toStr(childCursor.displayname)])
             self.mapIIDtoCursor[newIID] = childCursor
             self.mapCursorToIID[HashableObj(childCursor)] = newIID
             self._insert_children(childCursor, newIID)
@@ -335,10 +351,10 @@ class ASTOutputFrame(ttk.Frame):
         self.clear()
         self.translationunit = tu
         root = tu.cursor
-        iid = self.astView.insert('', 
-                                  'end', 
-                                  text=root.kind.name, 
-                                  values=[root.displayname])
+        iid = self.astView.insert('',
+                                  'end',
+                                  text=root.kind.name,
+                                  values=[toStr(root.displayname)])
         self.mapIIDtoCursor[iid] = root
         self.mapCursorToIID[HashableObj(root)] = iid
         self._insert_children(root, iid)
@@ -429,21 +445,18 @@ class CursorOutputFrame(ttk.Frame):
     def _add_cursor(self, cursor):
         # we got an exception if we compare a Cursor object with an other none Cursor object like None
         # Therfore Cursor == None will not work so we use a try
-        try:
+        if isinstance(cursor, clang.cindex.Cursor):
             self.cursorText.insert('end', 
                                 'Cursor ' + 
                                 str(cursor.hash) + 
                                 ' ' +
-                                cursor.kind.name + 
+                                cursor.kind.name +
                                 ' / ' + 
-                                cursor.displayname, 
+                                toStr(cursor.displayname),
                                 'link')
             self.cursorList.append(cursor)
-        except:
-            if cursor == None:
-                self.cursorText.insert('end', 'None')
-            else:
-                self.cursorText.insert('end', '?')
+        else:
+            self.cursorText.insert('end', str(cursor))
     
     def _add_attr(self, cursor, attr, attrName, attrType, attrOk):
         self.cursorText.insert('end', attrName, 'attr_name')
@@ -490,7 +503,7 @@ class CursorOutputFrame(ttk.Frame):
         # walk_preorder
         # get_tokens
         else:
-            self.cursorText.insert('end', str(attr))
+            self.cursorText.insert('end', toStr(attr))
         
         self.cursorText.insert('end', '\n\n')
 
