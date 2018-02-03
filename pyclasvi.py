@@ -99,18 +99,18 @@ class InputFrame(ttk.Frame):
         fileFrame = ttk.Frame(self)
         fileFrame.columnconfigure(0, weight=1)
         fileFrame.grid(row=1, column=0, columnspan=2, sticky='we')
-        self.filenameEntry = ttk.Entry(fileFrame, textvariable=self.filename)
-        self.filenameEntry.grid(row=0, column=0, sticky='we')
-        self.selectFileButton = ttk.Button(fileFrame, text='...', command=self.on_select_file)
-        self.selectFileButton.grid(row=0, column=1)
+        filenameEntry = ttk.Entry(fileFrame, textvariable=self.filename)
+        filenameEntry.grid(row=0, column=0, sticky='we')
+        button = ttk.Button(fileFrame, text='...', command=self.on_select_file)
+        button.grid(row=0, column=1)
         
         ttk.Label(self, text='Arguments:').grid(row=2, sticky='w')
         buttonFrame = ttk.Frame(self)
         buttonFrame.grid(row=3, column=0, columnspan=2, sticky='we')
-        self.includeButton = ttk.Button(buttonFrame, text='+ Include', command=self.on_include)
-        self.includeButton.grid()#(row=0, column=0)
-        self.defineButton = ttk.Button(buttonFrame, text='+ Define', command=self.on_define)
-        self.defineButton.grid(row=0, column=1)
+        button = ttk.Button(buttonFrame, text='+ Include', command=self.on_include)
+        button.grid()
+        button = ttk.Button(buttonFrame, text='+ Define', command=self.on_define)
+        button.grid(row=0, column=1)
         self.argsText = tk.Text(self)
         self.argsText.grid(row=4, sticky='nswe')
         make_scrollable(self, self.argsText, widgetRow=4, widgetColumn=0)
@@ -119,14 +119,14 @@ class InputFrame(ttk.Frame):
         buttonFrame.grid(row=6, column=0, columnspan=2, sticky='we')
         buttonFrame.columnconfigure(2, weight=1)
 
-        self.parseButton = ttk.Button(buttonFrame, text='Load', command=self.on_file_load)
-        self.parseButton.grid(row=0, column=0)
+        button = ttk.Button(buttonFrame, text='Load', command=self.on_file_load)
+        button.grid(row=0, column=0)
         
-        self.parseButton = ttk.Button(buttonFrame, text='Save', command=self.on_file_save)
-        self.parseButton.grid(row=0, column=1)
+        button = ttk.Button(buttonFrame, text='Save', command=self.on_file_save)
+        button.grid(row=0, column=1)
         
-        self.parseButton = ttk.Button(buttonFrame, text='Parse', command=self.parseCmd)
-        self.parseButton.grid(row=0, column=2, sticky='we')
+        button = ttk.Button(buttonFrame, text='Parse', command=self.parseCmd)
+        button.grid(row=0, column=2, sticky='we')
     
     def load_filename(self, filename):
         f = open(filename, 'r')
@@ -679,21 +679,21 @@ class Application(ttk.Frame):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         
-        self.note = ttk.Notebook(self)
+        note = ttk.Notebook(self)
         
-        self.inputFrame = InputFrame(self.note, parseCmd=self.on_parse)
+        self.inputFrame = InputFrame(note, parseCmd=self.on_parse)
         
-        self.errorFrame = ErrorFrame(self.note)
-        self.outputFrame = OutputFrame(self.note)
+        self.errorFrame = ErrorFrame(note)
+        self.outputFrame = OutputFrame(note)
         
-        self.note.add(self.inputFrame, text='Input')
-        self.note.add(self.errorFrame, text='Errors')
-        self.note.add(self.outputFrame, text='Output')
-        self.note.grid(row=0, column=0, sticky='nswe')
+        note.add(self.inputFrame, text='Input')
+        note.add(self.errorFrame, text='Errors')
+        note.add(self.outputFrame, text='Output')
+        note.grid(row=0, column=0, sticky='nswe')
         
-        self.quitButton = ttk.Button(self, text='Quit',
+        quitButton = ttk.Button(self, text='Quit',
             command=self.quit)
-        self.quitButton.grid(row=1, column=0, sticky='we')
+        quitButton.grid(row=1, column=0, sticky='we')
     
     def on_parse(self):
         fileName = self.inputFrame.get_filename()
