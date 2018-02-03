@@ -13,7 +13,6 @@
 #   Check coding style
 #   Add documentation "How to access Clang AST"
 # Input frame
-#   Add input for Config.set_library_file
 #   Add buttons for input language and language version
 # Error frame
 #   Filter for severity level
@@ -40,6 +39,7 @@ else: # python3
 
 import clang.cindex
 import ctypes
+import argparse
 
 
 # Python3 clang binding sometimes return bytes instead of strings
@@ -654,15 +654,15 @@ class OutputFrame(ttk.Frame):
 
 # Main window combine all frames in tabs an contains glue logic between these frames
 class Application(ttk.Frame):
-    def __init__(self, master=None, args=[]):
+    def __init__(self, master=None, file=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.create_widgets()
         
         self.index = clang.cindex.Index.create()
         
-        if len(args) > 0:
-            self.inputFrame.load_filename(args[0])
+        if file:
+            self.inputFrame.load_filename(file)
         else:
             self.inputFrame.set_filename("select file to parse =>")
             self.inputFrame.set_args(["-xc++",
@@ -704,6 +704,17 @@ class Application(ttk.Frame):
         self.outputFrame.set_translationunit(tu)
 
 
-app = Application(args=sys.argv[1:])
+parser = argparse.ArgumentParser(description='Python Clang AST Viewer')
+parser.add_argument('-l', '--libfile', help='select Clang library file', nargs=1, dest='libFile')
+parser.add_argument('file', help='''Text file containing input data,
+                    1st line = file to parse,
+                    next lines = Clang arguments, one argument per line''',
+                    nargs='?')
+args = parser.parse_args()
+
+if args.libFile:
+    clang.cindex.Config.set_library_file(args.libFile[0])
+
+app = Application(file=args.file)
 app.master.title('PyClASVi')
 app.mainloop()
