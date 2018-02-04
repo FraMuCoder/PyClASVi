@@ -614,14 +614,36 @@ class OutputFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.create_widgets()
+        self.clear()
 
     def create_widgets(self):
-        self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
+        
+        toolbar = ttk.Frame(self)
+        toolbar.grid(row=0, column=0, sticky='we')
+        
+        self.historyForwardBtn = tk.Button(toolbar, text='<', relief='flat', command=None)
+        self.historyForwardBtn.grid(row=0, column=0)
+        self.historyBackwardBtn = tk.Button(toolbar, text='>', relief='flat', command=None)
+        self.historyBackwardBtn.grid(row=0, column=1)
+        
+        sep = ttk.Separator(toolbar, orient='vertical')
+        sep.grid(row=0, column=2, sticky="ns", padx=5, pady=5)
+
+        self.searchBtn = tk.Button(toolbar, text='Search', relief='flat', command=None)
+        self.searchBtn.grid(row=0, column=3)
+        self.searchForwardBtn = tk.Button(toolbar, text='<', relief='flat', command=None)
+        self.searchForwardBtn.grid(row=0, column=4)
+        self.serachLabel = tk.Label(toolbar, text='0/0')
+        self.serachLabel.grid(row=0, column=5)
+        self.searchBackwardBtn = tk.Button(toolbar, text='>', relief='flat', command=None)
+        self.searchBackwardBtn.grid(row=0, column=6)
+
         
         # ttk version of PanedWindow do not support all options
         pw1 = tk.PanedWindow(self, orient='horizontal')
-        pw1.grid(row=0, column=0, sticky='nswe')
+        pw1.grid(row=1, column=0, sticky='nswe')
         
         self.astOutputFrame = ASTOutputFrame(pw1, selectCmd=self.on_cursor_selection)
         pw1.add(self.astOutputFrame, stretch="always")
@@ -642,7 +664,19 @@ class OutputFrame(ttk.Frame):
         self.cursorOutputFrame.set_cursor(cur)
         self.fileOutputFrame.set_location(cur.extent, cur.location)
     
+    def clear_history(self):
+        self.historyForwardBtn.config(state='disabled')
+        self.historyBackwardBtn.config(state='disabled')
+    
+    def clear_search(self):
+        self.searchForwardBtn.config(state='disabled')
+        self.searchBackwardBtn.config(state='disabled')
+    
     def clear(self):
+        self.clear_history()
+        self.clear_search()
+        self.searchBtn.config(state='disabled')
+        self.serachLabel.config(state='disabled')
         self.astOutputFrame.clear()
         self.cursorOutputFrame.clear()
         self.fileOutputFrame.clear()
