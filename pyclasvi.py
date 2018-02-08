@@ -21,7 +21,6 @@
 #   Add missing member outputs (see comments in class CursorOutputFrame)
 #   Output Tokens
 #   Output all other used class types
-#   Add a history like a web browser
 #   Add search function
 
 import sys
@@ -317,6 +316,9 @@ class ASTOutputFrame(ttk.Frame):
     def set_select_cmd(self, cmd):
         self.selectCmd = cmd
     
+    def get_current_iid(self):
+        return self.astView.focus()
+        
     def get_current_cursor(self):
         curCursor = None
         curItem = self.astView.focus()
@@ -324,11 +326,16 @@ class ASTOutputFrame(ttk.Frame):
             curCursor = self.mapIIDtoCursor[curItem]
         return curCursor
     
-    def set_current_cursor(self, cursor):
-        iid = self.mapCursorToIID[HashableObj(cursor)]
+    def set_current_iid(self, iid):
         self.astView.focus(iid)
         self.astView.selection_set(iid)
         self.astView.see(iid)
+        
+    def set_current_cursor(self, cursor):
+        iid = self.mapCursorToIID[HashableObj(cursor)]
+        if isinstance(iid, list): # partly multimap
+            iid = iid[0]
+        self.set_current_iid(iid)
     
     def clear(self):
         for i in self.astView.get_children():
@@ -337,17 +344,42 @@ class ASTOutputFrame(ttk.Frame):
         self.mapIIDtoCursor = {}
         self.mapCursorToIID = {}
     
-    def _insert_children(self, cursor, iid):
+    def _insert_children(self, cursor, iid, deep=1):
+        cntChildren = 0
         for childCursor in cursor.get_children():
+            cntChildren = cntChildren + 1
             newIID = self.astView.insert(iid,
                                         'end',
                                         text=childCursor.kind.name,
                                         values=[toStr(childCursor.displayname)])
             self.mapIIDtoCursor[newIID] = childCursor
-            self.mapCursorToIID[HashableObj(childCursor)] = newIID
-            self._insert_children(childCursor, newIID)
+            hCursor = HashableObj(childCursor)
+            if hCursor in self.mapCursorToIID: # already in map, make a partly multimap
+                self.cntDouble = self.cntDouble + 1
+                data = self.mapCursorToIID[hCursor]
+                if isinstance(data, str):
+                    data = [data]
+                    self.mapCursorToIID[hCursor] = data
+                data.append(newIID)
+                if len(data) > self.cntMaxDoubles:
+                    self.cntMaxDoubles = len(data)
+            else:
+                self.mapCursorToIID[hCursor] = newIID
+            self._insert_children(childCursor, newIID, deep+1)
+            self.cntCursors = self.cntCursors + 1
+        
+        if cntChildren > 0:
+            if cntChildren > self.cntMaxChildren:
+                self.cntMaxChildren = cntChildren
+            if deep > self.cntMaxDeep:
+                self.cntMaxDeep = deep
     
     def set_translationunit(self, tu):
+        self.cntCursors = 1
+        self.cntDouble = 0
+        self.cntMaxDoubles = 0
+        self.cntMaxChildren = 0
+        self.cntMaxDeep = 0
         self.clear()
         self.translationunit = tu
         root = tu.cursor
@@ -358,6 +390,11 @@ class ASTOutputFrame(ttk.Frame):
         self.mapIIDtoCursor[iid] = root
         self.mapCursorToIID[HashableObj(root)] = iid
         self._insert_children(root, iid)
+        
+        # some statistics
+        print('AST has {0} cursors including {1} doubles.'.format(self.cntCursors, self.cntDouble))
+        print('max doubles: {0}, max children {1}, max deep {2}'.format(
+            self.cntMaxDoubles, self.cntMaxChildren, self.cntMaxDeep))
 
 
 # Output nearly all members of the selected Cursor object
@@ -615,7 +652,12 @@ class OutputFrame(ttk.Frame):
         self.grid(sticky='nswe')
         self.create_widgets()
         self.clear()
+        self.curIID = ''
+        self.history = []
+        self.historyPos = -1
 
+    _max_history = 25
+    
     def create_widgets(self):
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
@@ -623,22 +665,24 @@ class OutputFrame(ttk.Frame):
         toolbar = ttk.Frame(self)
         toolbar.grid(row=0, column=0, sticky='we')
         
-        self.historyForwardBtn = tk.Button(toolbar, text='<', relief='flat', command=None)
-        self.historyForwardBtn.grid(row=0, column=0)
-        self.historyBackwardBtn = tk.Button(toolbar, text='>', relief='flat', command=None)
-        self.historyBackwardBtn.grid(row=0, column=1)
+        self.historyBackwardBtn = tk.Button(toolbar, text='<', relief='flat',
+                                            command=self.go_history_backward)
+        self.historyBackwardBtn.grid(row=0, column=0)
+        self.historyForwardBtn = tk.Button(toolbar, text='>', relief='flat',
+                                           command=self.go_history_forward)
+        self.historyForwardBtn.grid(row=0, column=1)
         
         sep = ttk.Separator(toolbar, orient='vertical')
         sep.grid(row=0, column=2, sticky="ns", padx=5, pady=5)
 
         self.searchBtn = tk.Button(toolbar, text='Search', relief='flat', command=None)
         self.searchBtn.grid(row=0, column=3)
-        self.searchForwardBtn = tk.Button(toolbar, text='<', relief='flat', command=None)
-        self.searchForwardBtn.grid(row=0, column=4)
+        self.searchBackwardBtn = tk.Button(toolbar, text='<', relief='flat', command=None)
+        self.searchBackwardBtn.grid(row=0, column=4)
         self.serachLabel = tk.Label(toolbar, text='0/0')
         self.serachLabel.grid(row=0, column=5)
-        self.searchBackwardBtn = tk.Button(toolbar, text='>', relief='flat', command=None)
-        self.searchBackwardBtn.grid(row=0, column=6)
+        self.searchForwardBtn = tk.Button(toolbar, text='>', relief='flat', command=None)
+        self.searchForwardBtn.grid(row=0, column=6)
 
         
         # ttk version of PanedWindow do not support all options
@@ -660,19 +704,76 @@ class OutputFrame(ttk.Frame):
         pw1.add(pw2, stretch="always")
     
     def on_cursor_selection(self):
-        cur = self.astOutputFrame.get_current_cursor()
-        self.cursorOutputFrame.set_cursor(cur)
-        self.fileOutputFrame.set_location(cur.extent, cur.location)
+        curIID = self.astOutputFrame.get_current_iid()
+        curCursor = self.astOutputFrame.get_current_cursor()
+        if curIID != self.curIID:
+            self.set_active_cursor(curCursor)
+            self.add_history(curIID)
+            self.curIID = curIID
+    
+    def set_active_cursor(self, cursor):
+        self.cursorOutputFrame.set_cursor(cursor)
+        self.fileOutputFrame.set_location(cursor.extent, cursor.location)
     
     def clear_history(self):
-        self.historyForwardBtn.config(state='disabled')
-        self.historyBackwardBtn.config(state='disabled')
+        self.history = []
+        self.historyPos = -1
+        self.update_history_buttons()
+    
+    def add_history(self, iid):
+        if self.historyPos < len(self.history):
+            # we travel backward in time and change the history
+            # so we change the time line and the future
+            # therefore erase the old future
+            self.history = self.history[:(self.historyPos+1)]
+            # now the future is an empty sheet of paper
+        
+        if len(self.history) >= OutputFrame._max_history: # history to long?
+            self.history = self.history[1:]
+        else:
+            self.historyPos = self.historyPos + 1
+        
+        self.history.append(iid)
+        self.update_history_buttons()
+    
+    def go_history_backward(self):
+        if self.historyPos > 0:
+            self.historyPos = self.historyPos - 1
+            self.update_history()
+        self.update_history_buttons()
+    
+    def go_history_forward(self):
+        if (self.historyPos+1) < len(self.history):
+            self.historyPos = self.historyPos + 1
+            self.update_history()
+        self.update_history_buttons()
+    
+    def update_history(self):
+        newIID = self.history[self.historyPos]
+        self.curIID = newIID # set this before on_cursor_selection() is called
+        self.astOutputFrame.set_current_iid(newIID) # this will cause call of on_cursor_selection()
+        self.set_active_cursor(self.astOutputFrame.get_current_cursor())
+
+    def update_history_buttons(self):
+        hLen = len(self.history)
+        hPos = self.historyPos
+        
+        if hPos > 0: # we can go backward
+            self.historyBackwardBtn.config(state='normal')
+        else:
+            self.historyBackwardBtn.config(state='disabled')
+        
+        if (hLen > 1) and ((hPos+1) < hLen): # we can go forward
+            self.historyForwardBtn.config(state='normal')
+        else:
+            self.historyForwardBtn.config(state='disabled')
     
     def clear_search(self):
         self.searchForwardBtn.config(state='disabled')
         self.searchBackwardBtn.config(state='disabled')
     
     def clear(self):
+        self.curIID = ''
         self.clear_history()
         self.clear_search()
         self.searchBtn.config(state='disabled')
