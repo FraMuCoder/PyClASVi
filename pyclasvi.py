@@ -318,7 +318,14 @@ class ASTOutputFrame(ttk.Frame):
     
     def get_current_iid(self):
         return self.astView.focus()
-        
+    
+    def get_current_iids(self):
+        cursor = self.get_current_cursor()
+        if cursor:
+            return self.mapCursorToIID[HashableObj(cursor)]
+        else:
+            return None
+    
     def get_current_cursor(self):
         curCursor = None
         curItem = self.astView.focus()
@@ -675,14 +682,29 @@ class OutputFrame(ttk.Frame):
         sep = ttk.Separator(toolbar, orient='vertical')
         sep.grid(row=0, column=2, sticky="ns", padx=5, pady=5)
 
+        label = tk.Label(toolbar, text='Doubles:')
+        label.grid(row=0, column=3)
+
+        self.doublesBackwardBtn = tk.Button(toolbar, text='<', relief='flat',
+                                            command=self.go_doubles_backward)
+        self.doublesBackwardBtn.grid(row=0, column=4)
+        self.doublesLabel = tk.Label(toolbar, text='-/-', width=5)
+        self.doublesLabel.grid(row=0, column=5)
+        self.doublesForwardBtn = tk.Button(toolbar, text='>', relief='flat',
+                                           command=self.go_doubles_forward)
+        self.doublesForwardBtn.grid(row=0, column=6)
+        
+        sep = ttk.Separator(toolbar, orient='vertical')
+        sep.grid(row=0, column=7, sticky="ns", padx=5, pady=5)
+        
         self.searchBtn = tk.Button(toolbar, text='Search', relief='flat', command=None)
-        self.searchBtn.grid(row=0, column=3)
+        self.searchBtn.grid(row=0, column=8)
         self.searchBackwardBtn = tk.Button(toolbar, text='<', relief='flat', command=None)
-        self.searchBackwardBtn.grid(row=0, column=4)
-        self.serachLabel = tk.Label(toolbar, text='0/0')
-        self.serachLabel.grid(row=0, column=5)
+        self.searchBackwardBtn.grid(row=0, column=9)
+        self.serachLabel = tk.Label(toolbar, text='-/-', width=5)
+        self.serachLabel.grid(row=0, column=10)
         self.searchForwardBtn = tk.Button(toolbar, text='>', relief='flat', command=None)
-        self.searchForwardBtn.grid(row=0, column=6)
+        self.searchForwardBtn.grid(row=0, column=11)
 
         
         # ttk version of PanedWindow do not support all options
@@ -710,6 +732,7 @@ class OutputFrame(ttk.Frame):
             self.set_active_cursor(curCursor)
             self.add_history(curIID)
             self.curIID = curIID
+        self.update_doubles()
     
     def set_active_cursor(self, cursor):
         self.cursorOutputFrame.set_cursor(cursor)
@@ -768,16 +791,47 @@ class OutputFrame(ttk.Frame):
         else:
             self.historyForwardBtn.config(state='disabled')
     
+    def clear_doubles(self):
+        self.doublesForwardBtn.config(state='disabled')
+        self.doublesLabel.config(state='disabled')
+        self.doublesLabel.config(text='-/-')
+        self.doublesBackwardBtn.config(state='disabled')
+    
+    def go_doubles_backward(self):
+        iids = self.astOutputFrame.get_current_iids()
+        if isinstance(iids, list):
+            newIdx = (iids.index(self.curIID) - 1) % len(iids)
+            newIID = iids[newIdx]
+            self.astOutputFrame.set_current_iid(newIID)
+    
+    def go_doubles_forward(self):
+        iids = self.astOutputFrame.get_current_iids()
+        if isinstance(iids, list):
+            newIdx = (iids.index(self.curIID) + 1) % len(iids)
+            newIID = iids[newIdx]
+            self.astOutputFrame.set_current_iid(newIID)
+
+    def update_doubles(self):
+        iids = self.astOutputFrame.get_current_iids()
+        if isinstance(iids, list):
+            self.doublesForwardBtn.config(state='normal')
+            self.doublesLabel.config(state='normal')
+            self.doublesLabel.config(text='{0}/{1}'.format(iids.index(self.curIID)+1, len(iids)))
+            self.doublesBackwardBtn.config(state='normal')
+        else:
+            self.clear_doubles()
+    
     def clear_search(self):
         self.searchForwardBtn.config(state='disabled')
+        self.serachLabel.config(state='disabled')
         self.searchBackwardBtn.config(state='disabled')
     
     def clear(self):
         self.curIID = ''
         self.clear_history()
+        self.clear_doubles()
         self.clear_search()
         self.searchBtn.config(state='disabled')
-        self.serachLabel.config(state='disabled')
         self.astOutputFrame.clear()
         self.cursorOutputFrame.clear()
         self.fileOutputFrame.clear()
