@@ -29,15 +29,18 @@ if sys.version_info.major == 2:
     import Tkinter as tk
     import tkFont
     import tkFileDialog
+    import tkMessageBox
 else: # python3
     import tkinter.ttk as ttk
     import tkinter as tk
     import tkinter.font as tkFont
     import tkinter.filedialog as tkFileDialog
+    import tkinter.messagebox as tkMessageBox
 
 import clang.cindex
 import ctypes
 import argparse
+import re
 
 
 # Python3 clang binding sometimes return bytes instead of strings
@@ -407,16 +410,39 @@ class ASTOutputFrame(ttk.Frame):
         useCursorKind = kwargs['use_CursorKind']
         cursorKind = kwargs['CursorKind']
         spelling = kwargs['spelling']
+        caseInsensitive = kwargs['caseInsensitive']
+        useRegEx = kwargs['use_RexEx']
+        if useRegEx:
+            reFlags = 0
+            if caseInsensitive:
+                reFlags = re.IGNORECASE
+            try:
+                reObj = re.compile(spelling, reFlags)
+            except Exception as e:
+                tkMessageBox.showerror("Search RegEx", str(e))
+                return result
+        elif caseInsensitive:
+            spelling = spelling.lower()
+        
         for iid in self.mapIIDtoCursor:
             cursor = self.mapIIDtoCursor[iid]
             found = True
             if useCursorKind:
                 found = cursorKind == cursor.kind.name
             if found:
-                found = spelling == toStr(cursor.spelling)
+                if useRegEx:
+                    if not reObj.match(toStr(cursor.spelling)):
+                        found = False
+                    
+                elif caseInsensitive:
+                    found = spelling == toStr(cursor.spelling).lower()
+                else:
+                    found = spelling == toStr(cursor.spelling)
             if found:
                 result.append(iid)
+        
         result.sort()
+        
         return result
 
 
@@ -685,6 +711,8 @@ class SearchDialog(tk.Toplevel):
         self.kindState = tk.IntVar(value=0)
         self.kindValue = tk.StringVar(value=self.kindOptions[0])
         self.searchtext = tk.StringVar(value="")
+        self.caseInsensitive = tk.IntVar(value=0)
+        self.useRegEx = tk.IntVar(value=0)
         
         if SearchDialog._old_data:
             self.set_data(**SearchDialog._old_data)
@@ -719,6 +747,11 @@ class SearchDialog(tk.Toplevel):
         searchEntry = ttk.Entry(frame, textvariable=self.searchtext, width=25)
         searchEntry.grid(row=1, column=1, sticky='we')
         
+        cb=ttk.Checkbutton(frame, text="Ignore case", variable=self.caseInsensitive)
+        cb.grid(row=2, column=1, sticky='w')
+        cb=ttk.Checkbutton(frame, text="Use RegEx", variable=self.useRegEx)
+        cb.grid(row=3, column=1, sticky='w')
+        
         frame = ttk.Frame(self)
         frame.grid(row=1, column=0, sticky='e')
         
@@ -733,12 +766,16 @@ class SearchDialog(tk.Toplevel):
         data['use_CursorKind'] = self.kindState.get()
         data['CursorKind'] = self.kindValue.get()
         data['spelling'] = self.searchtext.get()
+        data['caseInsensitive'] = self.caseInsensitive.get()
+        data['use_RexEx'] = self.useRegEx.get()
         return data
     
     def set_data(self, **kwargs):
         self.kindState.set(kwargs['use_CursorKind'])
         self.kindValue.set(kwargs['CursorKind'])
         self.searchtext.set(kwargs['spelling'])
+        self.caseInsensitive.set(kwargs['caseInsensitive'])
+        self.useRegEx.set(kwargs['use_RexEx'])
     
     def on_check_kind(self):
         if self.kindState.get():
