@@ -21,7 +21,6 @@
 #   Add missing member outputs (see comments in class CursorOutputFrame)
 #   Output Tokens
 #   Output all other used class types
-#   Add search function
 
 import sys
 
@@ -402,6 +401,23 @@ class ASTOutputFrame(ttk.Frame):
         print('AST has {0} cursors including {1} doubles.'.format(self.cntCursors, self.cntDouble))
         print('max doubles: {0}, max children {1}, max deep {2}'.format(
             self.cntMaxDoubles, self.cntMaxChildren, self.cntMaxDeep))
+    
+    def search(self, **kwargs):
+        result = []
+        useCursorKind = kwargs['use_CursorKind']
+        cursorKind = kwargs['CursorKind']
+        spelling = kwargs['spelling']
+        for iid in self.mapIIDtoCursor:
+            cursor = self.mapIIDtoCursor[iid]
+            found = True
+            if useCursorKind:
+                found = cursorKind == cursor.kind.name
+            if found:
+                found = spelling == toStr(cursor.spelling)
+            if found:
+                result.append(iid)
+        result.sort()
+        return result
 
 
 # Output nearly all members of the selected Cursor object
@@ -652,6 +668,93 @@ class FileOutputFrame(ttk.Frame):
         self.fileText.config(state='disabled')
 
 
+# separat dialog window for search
+class SearchDialog(tk.Toplevel):
+    
+    _old_data = None
+    
+    def __init__(self, master=None):
+        tk.Toplevel.__init__(self, master)
+        self.transient(master)
+        
+        self.result = False
+        self.kindOptions = []
+        for kind in clang.cindex.CursorKind.get_all_kinds():
+            self.kindOptions.append(kind.name)
+        self.kindOptions.sort()
+        self.kindState = tk.IntVar(value=0)
+        self.kindValue = tk.StringVar(value=self.kindOptions[0])
+        self.searchtext = tk.StringVar(value="")
+        
+        if SearchDialog._old_data:
+            self.set_data(**SearchDialog._old_data)
+        
+        self.title('Search')
+        self.create_widgets()
+        self.on_check_kind()
+        
+        self.grab_set()
+        
+        self.bind("<Return>", self.on_ok)
+        self.bind("<Escape>", self.on_cancel)
+        
+        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
+        
+        self.wait_window(self)
+    
+    def create_widgets(self):
+        self.columnconfigure(0, weight=1)
+        
+        frame = ttk.Frame(self)
+        frame.grid(row=0, column=0, sticky='nesw')
+        frame.columnconfigure(1, weight=1)
+        
+        cb=ttk.Checkbutton(frame, text="Kind:", variable=self.kindState, command=self.on_check_kind)
+        cb.grid(row=0, column=0)
+        self.kindCBox = ttk.Combobox(frame, textvariable=self.kindValue, values=self.kindOptions)
+        self.kindCBox.grid(row=0, column=1, sticky='we')
+        
+        label = tk.Label(frame, text='Spelling:')
+        label.grid(row=1, column=0)
+        searchEntry = ttk.Entry(frame, textvariable=self.searchtext, width=25)
+        searchEntry.grid(row=1, column=1, sticky='we')
+        
+        frame = ttk.Frame(self)
+        frame.grid(row=1, column=0, sticky='e')
+        
+        btn = tk.Button(frame, text='OK', width=8, command=self.on_ok)
+        btn.grid(row=0, column=0, sticky='e')
+        
+        btn = tk.Button(frame, text='Cancel', width=8, command=self.on_cancel)
+        btn.grid(row=0, column=1, sticky='e')
+    
+    def get_data(self):
+        data = {}
+        data['use_CursorKind'] = self.kindState.get()
+        data['CursorKind'] = self.kindValue.get()
+        data['spelling'] = self.searchtext.get()
+        return data
+    
+    def set_data(self, **kwargs):
+        self.kindState.set(kwargs['use_CursorKind'])
+        self.kindValue.set(kwargs['CursorKind'])
+        self.searchtext.set(kwargs['spelling'])
+    
+    def on_check_kind(self):
+        if self.kindState.get():
+            self.kindCBox.config(state='normal')
+        else:
+            self.kindCBox.config(state='disable')
+    
+    def on_ok(self, event=None):
+        self.result = True
+        SearchDialog._old_data = self.get_data()
+        self.destroy()
+    
+    def on_cancel(self, event=None):
+        self.destroy()
+
+
 # Output frame shows the AST on the left and the selected Cursor on the right
 class OutputFrame(ttk.Frame):
     def __init__(self, master=None):
@@ -662,6 +765,8 @@ class OutputFrame(ttk.Frame):
         self.curIID = ''
         self.history = []
         self.historyPos = -1
+        self.searchResult = []
+        self.searchPos = -1
 
     _max_history = 25
     
@@ -697,13 +802,16 @@ class OutputFrame(ttk.Frame):
         sep = ttk.Separator(toolbar, orient='vertical')
         sep.grid(row=0, column=7, sticky="ns", padx=5, pady=5)
         
-        self.searchBtn = tk.Button(toolbar, text='Search', relief='flat', command=None)
+        self.searchBtn = tk.Button(toolbar, text='Search', relief='flat',
+                                   command=self.on_search)
         self.searchBtn.grid(row=0, column=8)
-        self.searchBackwardBtn = tk.Button(toolbar, text='<', relief='flat', command=None)
+        self.searchBackwardBtn = tk.Button(toolbar, text='<', relief='flat',
+                                           command=self.go_search_backward)
         self.searchBackwardBtn.grid(row=0, column=9)
         self.serachLabel = tk.Label(toolbar, text='-/-', width=5)
         self.serachLabel.grid(row=0, column=10)
-        self.searchForwardBtn = tk.Button(toolbar, text='>', relief='flat', command=None)
+        self.searchForwardBtn = tk.Button(toolbar, text='>', relief='flat',
+                                          command=self.go_search_forward)
         self.searchForwardBtn.grid(row=0, column=11)
 
         
@@ -822,9 +930,41 @@ class OutputFrame(ttk.Frame):
             self.clear_doubles()
     
     def clear_search(self):
-        self.searchForwardBtn.config(state='disabled')
-        self.serachLabel.config(state='disabled')
-        self.searchBackwardBtn.config(state='disabled')
+        self.searchResult = []
+        self.update_search()
+    
+    def on_search(self):
+        search = SearchDialog(self.winfo_toplevel())
+        if search.result:
+            data = search.get_data()
+            self.searchResult = self.astOutputFrame.search(**data)
+            self.searchPos = 0
+            self.update_search()
+            if len(self.searchResult) > 0:
+                self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
+    
+    def go_search_backward(self):
+        self.searchPos = (self.searchPos - 1) % len(self.searchResult)
+        self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
+        self.update_search()
+    
+    def go_search_forward(self):
+        self.searchPos = (self.searchPos + 1) % len(self.searchResult)
+        self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
+        self.update_search()
+    
+    def update_search(self):
+        cnt = len(self.searchResult)
+        if cnt > 0:
+            self.searchForwardBtn.config(state='normal')
+            self.serachLabel.config(state='normal')
+            self.serachLabel.config(text='{0}/{1}'.format(self.searchPos+1, cnt))
+            self.searchBackwardBtn.config(state='normal')
+        else:
+            self.searchForwardBtn.config(state='disabled')
+            self.serachLabel.config(state='disabled')
+            self.serachLabel.config(text='-/-')
+            self.searchBackwardBtn.config(state='disabled')
     
     def clear(self):
         self.curIID = ''
@@ -839,6 +979,7 @@ class OutputFrame(ttk.Frame):
     def set_translationunit(self, tu):
         self.clear()
         self.astOutputFrame.set_translationunit(tu)
+        self.searchBtn.config(state='normal')
 
 
 # Main window combine all frames in tabs an contains glue logic between these frames
