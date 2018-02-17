@@ -278,6 +278,8 @@ class ErrorFrame(ttk.Frame):
                 location
                 ])
             self.errorMap[iid] = err
+        
+        return cnt
 
 
 # Output the AST in a Treeview like folders in a file browser
@@ -1046,17 +1048,17 @@ class Application(ttk.Frame):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         
-        note = ttk.Notebook(self)
+        self.notebook = ttk.Notebook(self)
         
-        self.inputFrame = InputFrame(note, parseCmd=self.on_parse)
+        self.inputFrame = InputFrame(self.notebook, parseCmd=self.on_parse)
         
-        self.errorFrame = ErrorFrame(note)
-        self.outputFrame = OutputFrame(note)
+        self.errorFrame = ErrorFrame(self.notebook)
+        self.outputFrame = OutputFrame(self.notebook)
         
-        note.add(self.inputFrame, text='Input')
-        note.add(self.errorFrame, text='Errors')
-        note.add(self.outputFrame, text='Output')
-        note.grid(row=0, column=0, sticky='nswe')
+        self.notebook.add(self.inputFrame, text='Input')
+        self.notebook.add(self.errorFrame, text='Errors')
+        self.notebook.add(self.outputFrame, text='Output')
+        self.notebook.grid(row=0, column=0, sticky='nswe')
         
         quitButton = ttk.Button(self, text='Quit',
             command=self.quit)
@@ -1067,8 +1069,13 @@ class Application(ttk.Frame):
         args = self.inputFrame.get_args()
         tu = self.index.parse(fileName, args=args)
         
-        self.errorFrame.set_errors(tu.diagnostics)
+        cntErr = self.errorFrame.set_errors(tu.diagnostics)
         self.outputFrame.set_translationunit(tu)
+        
+        if cntErr > 0:
+            self.notebook.select(self.errorFrame)
+        else:
+            self.notebook.select(self.outputFrame)
 
 
 parser = argparse.ArgumentParser(description='Python Clang AST Viewer')
