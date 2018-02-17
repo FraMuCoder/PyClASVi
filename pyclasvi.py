@@ -462,18 +462,36 @@ class CursorOutputFrame(ttk.Frame):
     _ignore_types = ('function',)
     
     # methodes with no parameter and simple return type
-    _simple_methodes = ('is_definition', 
-                        'is_const_method', 
-                        'is_mutable_field', 
-                        'is_pure_virtual_method', 
-                        'is_static_method',
-                        'is_virtual_method',
-                        'get_usr',
-                        'get_num_template_arguments',
-                        'get_field_offsetof',
-                        'is_anonymous',
-                        'is_bitfield',
-                        'get_bitfield_width')
+    _simple_cursor_methodes = ('is_definition', 
+                               'is_const_method', 
+                               'is_mutable_field', 
+                               'is_pure_virtual_method', 
+                               'is_static_method',
+                               'is_virtual_method',
+                               'get_usr',
+                               'get_num_template_arguments',
+                               'get_field_offsetof',
+                               'is_anonymous',
+                               'is_bitfield',
+                               'get_bitfield_width')
+    
+    _simple_type_methodes = ('argument_types',
+                             'get_canonical',
+                             'is_const_qualified',
+                             'is_volatile_qualified',
+                             'is_restrict_qualified',
+                             'is_function_variadic',
+                             'is_pod',
+                             'get_pointee',
+                             'get_declaration',
+                             'get_result',
+                             'get_array_element_type',
+                             'get_array_size',
+                             'get_class_type',
+                             'get_align',
+                             'get_size',
+                             'get_ref_qualifier',
+                             'get_fields')
     
     # methodes with no parameter and return a Cursor
     _cursor_methodes = ('get_definition')
@@ -546,7 +564,8 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', str(cursor))
     
-    def _add_attr(self, cursor, attr, attrName, attrType, attrOk):
+    def _add_attr(self, obj, attr, attrName, attrType, attrOk, prefix=''):
+        self.cursorText.insert('end', prefix)
         self.cursorText.insert('end', attrName, 'attr_name')
         self.cursorText.insert('end', ' (')
         if attrOk:
@@ -555,10 +574,20 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', attrType, 'attr_err')
         self.cursorText.insert('end', '):\n')
         
+        self.cursorText.insert('end', prefix)
         if attrType == 'Cursor':
             self._add_cursor(attr)
-        elif attrName in CursorOutputFrame._simple_methodes:
-            self.cursorText.insert('end', '= ' + str(attr()))
+        if attrType == 'Type':
+            self._add_obj(attr, prefix+'\t')
+        elif (isinstance(obj, clang.cindex.Cursor)
+            and (attrName in CursorOutputFrame._simple_cursor_methodes)):
+            self.cursorText.insert('end', '= ' + toStr(attr()))
+        elif (isinstance(obj, clang.cindex.Type)
+            and (attrName in CursorOutputFrame._simple_type_methodes)):
+            try:
+                self.cursorText.insert('end', '= ' + toStr(attr()))
+            except BaseException as e:
+                    self.cursorText.insert('end', e.__class__.__name__ + ' => do not use this', 'attr_err')
         elif attrName in CursorOutputFrame._cursor_methodes:
             self.cursorText.insert('end', '= ')
             self._add_cursor(attr())
@@ -568,6 +597,7 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', '= [')
             for arg in args:
                 if not isFirst:
+                    self.cursorText.insert('end', prefix)
                     self.cursorText.insert('end', '   ')
                 isFirst = False
                 self._add_cursor(arg)
@@ -576,11 +606,11 @@ class CursorOutputFrame(ttk.Frame):
                 self.cursorText.delete('end - 3 chars', 'end')
             self.cursorText.insert('end', ']')
         elif attrName == 'get_template_argument_kind':
-            nums = cursor.get_num_template_arguments()
+            nums = obj.get_num_template_arguments()
             if nums > 0:
                 for n in range(nums):
                     self.cursorText.insert('end', '(num='+str(n)+') = ')
-                    self.cursorText.insert('end', str(cursor.get_template_argument_kind(n))+'\n')
+                    self.cursorText.insert('end', str(obj.get_template_argument_kind(n))+'\n')
         # TODO
         # get_template_argument_type
         # get_template_argument_value
@@ -595,6 +625,28 @@ class CursorOutputFrame(ttk.Frame):
         
         self.cursorText.insert('end', '\n\n')
 
+    def _add_obj(self, obj, prefix=''):
+        if obj:
+            attrs = dir(obj)
+            for attrName in attrs:
+                # ignore all starts with '_'
+                if attrName[0] == '_':
+                    continue
+                attrType = None
+                attrVal = None
+                val = None
+                attrOk = False
+                try:
+                    val = getattr(obj, attrName)
+                    attrType = val.__class__.__name__
+                    if attrType in CursorOutputFrame._ignore_types:
+                        continue
+                    attrOk = True
+                except BaseException as e:
+                    attrType = e.__class__.__name__ + ' => do not use this'
+                
+                self._add_attr(obj, val, attrName, attrType, attrOk, prefix)
+
     def set_cursor(self, c):
         if not isinstance(c, clang.cindex.Cursor):
             self.clear()
@@ -606,27 +658,8 @@ class CursorOutputFrame(ttk.Frame):
         self.cursor = c
         self.cursorText.config(state='normal')
         self.cursorText.delete('1.0', 'end')
-        if c:
-            attrs = dir(c)
-            for attrName in attrs:
-                # ignore all starts with '_'
-                if attrName[0] == '_':
-                    continue
-                attrType = None
-                attrVal = None
-                val = None
-                attrOk = False
-                try:
-                    val = getattr(c, attrName)
-                    attrType = val.__class__.__name__
-                    if attrType in CursorOutputFrame._ignore_types:
-                        continue
-                    attrOk = True
-                except BaseException as e:
-                    attrType = e.__class__.__name__ + ' => do not use this'
-                
-                self._add_attr(c, val, attrName, attrType, attrOk)
-                
+        self._add_obj(c)
+
         self.cursorText.config(state='disabled')
 
 
