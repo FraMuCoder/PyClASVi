@@ -112,7 +112,7 @@ class InputFrame(ttk.Frame):
         button.grid()
         button = ttk.Button(buttonFrame, text='+ Define', command=self.on_define)
         button.grid(row=0, column=1)
-        self.argsText = tk.Text(self)
+        self.argsText = tk.Text(self, wrap="none")
         self.argsText.grid(row=4, sticky='nswe')
         make_scrollable(self, self.argsText, widgetRow=4, widgetColumn=0)
 
@@ -485,7 +485,7 @@ class CursorOutputFrame(ttk.Frame):
         
         defFont = tkFont.Font(font="TkFixedFont")
         defFontProp = defFont.actual()
-        self.cursorText = tk.Text(self)
+        self.cursorText = tk.Text(self, wrap="none")
         self.cursorText.grid(row=0, sticky='nswe')
         
         make_scrollable(self, self.cursorText)
@@ -639,7 +639,7 @@ class FileOutputFrame(ttk.Frame):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
         
-        self.fileText = tk.Text(self)
+        self.fileText = tk.Text(self, wrap="none")
         self.fileText.grid(row=0, sticky='nswe')
         self.fileText.tag_configure('range', background='gray')
         self.fileText.tag_configure('location', background='yellow')
