@@ -517,13 +517,19 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.tag_bind('link', '<ButtonPress-1>', self.on_cursor_click)
         self.cursorText.tag_bind('link', '<Enter>', self.on_link_enter)
         self.cursorText.tag_bind('link', '<Leave>', self.on_link_leave)
+        self.cursorText.tag_configure('section_header')
+        self.cursorText.tag_bind("section_header", "<ButtonPress-1>", self.on_section_click)
+        self.cursorText.tag_bind('section_header', '<Enter>', self.on_section_enter)
+        self.cursorText.tag_bind('section_header', '<Leave>', self.on_section_leave)
+        self.cursorText.tag_configure("section_hidden", elide=True)
+        self.cursorText.tag_configure('section')
         self.cursorText.config(state='disabled')
 
     def on_link_enter(self, event):
         self.cursorText.configure(cursor='hand1')
 
     def on_link_leave(self, event):
-        self.cursorText.configure(cursor='arrow')
+        self.cursorText.configure(cursor='xterm')
 
     def on_cursor_click(self, event):
         if self.selectCmd == None:
@@ -540,6 +546,28 @@ class CursorOutputFrame(ttk.Frame):
                 self.selectCmd(cursor)
                 break
             listIdx += 1
+
+    def on_section_enter(self, event):
+        self.cursorText.configure(cursor='arrow')
+
+    def on_section_leave(self, event):
+        self.cursorText.configure(cursor='xterm')
+
+    def on_section_click(self, event):
+        curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
+        next_section = self.cursorText.tag_nextrange("section", curIdx)
+        if next_section:
+            self.cursorText.config(state='normal')
+            cur_header = self.cursorText.tag_prevrange("section_header", next_section[0])
+            next_hidden = self.cursorText.tag_nextrange("section_hidden", curIdx)
+            self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
+            if next_hidden and (next_hidden == next_section):
+                self.cursorText.tag_remove("section_hidden", next_section[0], next_section[1])
+                self.cursorText.insert(cur_header[0]+' +1c', '-')
+            else:
+                self.cursorText.tag_add("section_hidden", next_section[0], next_section[1])
+                self.cursorText.insert(cur_header[0]+' +1c', '+')
+            self.cursorText.config(state='disabled')
 
     def clear(self):
         self.cursorText.config(state='normal')
@@ -566,6 +594,7 @@ class CursorOutputFrame(ttk.Frame):
     
     def _add_attr(self, obj, attr, attrName, attrType, attrOk, prefix=''):
         self.cursorText.insert('end', prefix)
+        self.cursorText.insert('end', '[+] ', 'section_header')
         self.cursorText.insert('end', attrName, 'attr_name')
         self.cursorText.insert('end', ' (')
         if attrOk:
@@ -573,12 +602,16 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', attrType, 'attr_err')
         self.cursorText.insert('end', '):\n')
+
+        createSection = True
+        startIdx = self.cursorText.index('end -1c')
         
-        self.cursorText.insert('end', prefix)
+        self.cursorText.insert('end', prefix+(' '*4))
         if attrType == 'Cursor':
             self._add_cursor(attr)
         if attrType == 'Type':
             self._add_obj(attr, prefix+'\t')
+            createSection = False
         elif (isinstance(obj, clang.cindex.Cursor)
             and (attrName in CursorOutputFrame._simple_cursor_methodes)):
             self.cursorText.insert('end', '= ' + toStr(attr()))
@@ -597,7 +630,7 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', '= [')
             for arg in args:
                 if not isFirst:
-                    self.cursorText.insert('end', prefix)
+                    self.cursorText.insert('end', prefix+(' '*4))
                     self.cursorText.insert('end', '   ')
                 isFirst = False
                 self._add_cursor(arg)
@@ -623,7 +656,12 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', toStr(attr))
         
-        self.cursorText.insert('end', '\n\n')
+        self.cursorText.insert('end', '\n')
+        endIdx = self.cursorText.index('end -1c')
+        
+        if createSection:
+            self.cursorText.tag_add("section", startIdx, endIdx)
+            self.cursorText.tag_add("section_hidden", startIdx, endIdx)
 
     def _add_obj(self, obj, prefix=''):
         if obj:
