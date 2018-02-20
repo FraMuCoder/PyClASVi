@@ -458,6 +458,8 @@ class CursorOutputFrame(ttk.Frame):
         self.selectCmd = selectCmd
         self.cursorList = []
     
+    _MAX_DEEP = 5
+    
     # ignore member with this types
     _ignore_types = ('function',)
     
@@ -517,12 +519,15 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.tag_bind('link', '<ButtonPress-1>', self.on_cursor_click)
         self.cursorText.tag_bind('link', '<Enter>', self.on_link_enter)
         self.cursorText.tag_bind('link', '<Leave>', self.on_link_leave)
-        self.cursorText.tag_configure('section_header')
-        self.cursorText.tag_bind("section_header", "<ButtonPress-1>", self.on_section_click)
-        self.cursorText.tag_bind('section_header', '<Enter>', self.on_section_enter)
-        self.cursorText.tag_bind('section_header', '<Leave>', self.on_section_leave)
-        self.cursorText.tag_configure("section_hidden", elide=True)
-        self.cursorText.tag_configure('section')
+        
+        for n in range(CursorOutputFrame._MAX_DEEP):
+            self.cursorText.tag_configure('section_header_' + str(n))
+            self.cursorText.tag_bind('section_header_' + str(n), "<ButtonPress-1>", self.on_section_click)
+            self.cursorText.tag_bind('section_header_' + str(n), '<Enter>', self.on_section_enter)
+            self.cursorText.tag_bind('section_header_' + str(n), '<Leave>', self.on_section_leave)
+            self.cursorText.tag_configure('section_hidden_' + str(n), elide=True)
+            self.cursorText.tag_configure('section_' + str(n))
+        
         self.cursorText.config(state='disabled')
 
     def on_link_enter(self, event):
@@ -555,17 +560,30 @@ class CursorOutputFrame(ttk.Frame):
 
     def on_section_click(self, event):
         curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
-        next_section = self.cursorText.tag_nextrange("section", curIdx)
+        
+        next_section = None
+        curLev = 0
+        for n in range(CursorOutputFrame._MAX_DEEP):
+            new_next_section = self.cursorText.tag_nextrange('section_'+str(n), curIdx)
+            if next_section:
+                if new_next_section:
+                    if self.cursorText.compare(new_next_section[0], '<', next_section[0]):
+                        next_section = new_next_section
+                        curLev = n
+            elif new_next_section:
+                next_section = new_next_section
+                curLev = n
+        
         if next_section:
             self.cursorText.config(state='normal')
-            cur_header = self.cursorText.tag_prevrange("section_header", next_section[0])
-            next_hidden = self.cursorText.tag_nextrange("section_hidden", curIdx)
+            cur_header = self.cursorText.tag_prevrange('section_header_'+str(curLev), next_section[0])
+            next_hidden = self.cursorText.tag_nextrange('section_hidden_'+str(curLev), curIdx)
             self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
             if next_hidden and (next_hidden == next_section):
-                self.cursorText.tag_remove("section_hidden", next_section[0], next_section[1])
+                self.cursorText.tag_remove('section_hidden_'+str(curLev), next_section[0], next_section[1])
                 self.cursorText.insert(cur_header[0]+' +1c', '-')
             else:
-                self.cursorText.tag_add("section_hidden", next_section[0], next_section[1])
+                self.cursorText.tag_add('section_hidden_'+str(curLev), next_section[0], next_section[1])
                 self.cursorText.insert(cur_header[0]+' +1c', '+')
             self.cursorText.config(state='disabled')
 
@@ -592,9 +610,9 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', str(cursor))
     
-    def _add_attr(self, obj, attr, attrName, attrType, attrOk, prefix=''):
+    def _add_attr(self, obj, attr, attrName, attrType, attrOk, prefix='', level=0):
         self.cursorText.insert('end', prefix)
-        self.cursorText.insert('end', '[+] ', 'section_header')
+        self.cursorText.insert('end', '[+] ', 'section_header_'+str(level))
         self.cursorText.insert('end', attrName, 'attr_name')
         self.cursorText.insert('end', ' (')
         if attrOk:
@@ -603,15 +621,13 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', attrType, 'attr_err')
         self.cursorText.insert('end', '):\n')
 
-        createSection = True
         startIdx = self.cursorText.index('end -1c')
         
         self.cursorText.insert('end', prefix+(' '*4))
         if attrType == 'Cursor':
             self._add_cursor(attr)
         if attrType == 'Type':
-            self._add_obj(attr, prefix+'\t')
-            createSection = False
+            self._add_obj(attr, prefix+'\t', level+1)
         elif (isinstance(obj, clang.cindex.Cursor)
             and (attrName in CursorOutputFrame._simple_cursor_methodes)):
             self.cursorText.insert('end', '= ' + toStr(attr()))
@@ -659,11 +675,10 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.insert('end', '\n')
         endIdx = self.cursorText.index('end -1c')
         
-        if createSection:
-            self.cursorText.tag_add("section", startIdx, endIdx)
-            self.cursorText.tag_add("section_hidden", startIdx, endIdx)
+        self.cursorText.tag_add('section_'+str(level), startIdx, endIdx)
+        self.cursorText.tag_add('section_hidden_'+str(level), startIdx, endIdx)
 
-    def _add_obj(self, obj, prefix=''):
+    def _add_obj(self, obj, prefix='', level=0):
         if obj:
             attrs = dir(obj)
             for attrName in attrs:
@@ -683,7 +698,7 @@ class CursorOutputFrame(ttk.Frame):
                 except BaseException as e:
                     attrType = e.__class__.__name__ + ' => do not use this'
                 
-                self._add_attr(obj, val, attrName, attrType, attrOk, prefix)
+                self._add_attr(obj, val, attrName, attrType, attrOk, prefix, level)
 
     def set_cursor(self, c):
         if not isinstance(c, clang.cindex.Cursor):
