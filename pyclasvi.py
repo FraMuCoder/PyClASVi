@@ -40,6 +40,7 @@ else: # python3
 import clang.cindex
 import ctypes
 import argparse
+import inspect
 import re
 
 
@@ -50,6 +51,23 @@ def toStr(data):
         return data.decode('ascii') # ASCII should be default in C/C++ but what about comments
     else:
         return str(data)
+
+
+# check if m is an instance methode
+def is_instance_methode(m):
+    return inspect.ismethod(m)
+
+
+# has this instance methode only the self parameter?
+def is_simple_instance_methode(m):
+    argSpec = inspect.getargspec(m)
+    return len(argSpec.args) == 1 # only self
+
+
+# get methode definition like "(arg1, arg2)" as string
+def get_methode_prototype(m):
+    argSpec = inspect.getargspec(m)
+    return inspect.formatargspec(*argSpec)
 
 
 # Cursor objects have a hash property but no __hash__ methode
@@ -457,61 +475,23 @@ class CursorOutputFrame(ttk.Frame):
         self.cursor = None
         self.selectCmd = selectCmd
         self.cursorList = []
-    
+
     _MAX_DEEP = 5
-    
+
     # ignore member with this types
     _ignore_types = ('function',)
-    
-    # methodes with no parameter and simple return type
-    _simple_cursor_methodes = ('is_definition', 
-                               'is_const_method', 
-                               'is_mutable_field', 
-                               'is_pure_virtual_method', 
-                               'is_static_method',
-                               'is_virtual_method',
-                               'get_usr',
-                               'get_num_template_arguments',
-                               'get_field_offsetof',
-                               'is_anonymous',
-                               'is_bitfield',
-                               'get_bitfield_width')
-    
-    _simple_type_methodes = ('argument_types',
-                             'get_canonical',
-                             'is_const_qualified',
-                             'is_volatile_qualified',
-                             'is_restrict_qualified',
-                             'is_function_variadic',
-                             'is_pod',
-                             'get_pointee',
-                             'get_declaration',
-                             'get_result',
-                             'get_array_element_type',
-                             'get_array_size',
-                             'get_class_type',
-                             'get_align',
-                             'get_size',
-                             'get_ref_qualifier',
-                             'get_fields')
-    
-    # methodes with no parameter and return a Cursor
-    _cursor_methodes = ('get_definition')
-    
-    # methodes with no parameter and return an enumeration of Cursors
-    _cursors_methodes = ('get_arguments',)
 
     def create_widgets(self):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        
+
         defFont = tkFont.Font(font="TkFixedFont")
         defFontProp = defFont.actual()
         self.cursorText = tk.Text(self, wrap="none")
         self.cursorText.grid(row=0, sticky='nswe')
-        
+
         make_scrollable(self, self.cursorText)
-        
+
         self.cursorText.tag_configure('attr_name', font=(defFontProp['family'], defFontProp['size'], 'bold'))
         self.cursorText.tag_configure('attr_type', foreground='green')
         self.cursorText.tag_configure('attr_err', foreground='red')
@@ -519,7 +499,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.tag_bind('link', '<ButtonPress-1>', self.on_cursor_click)
         self.cursorText.tag_bind('link', '<Enter>', self.on_link_enter)
         self.cursorText.tag_bind('link', '<Leave>', self.on_link_leave)
-        
+
         for n in range(CursorOutputFrame._MAX_DEEP):
             self.cursorText.tag_configure('section_header_' + str(n))
             self.cursorText.tag_bind('section_header_' + str(n), "<ButtonPress-1>", self.on_section_click)
@@ -527,7 +507,7 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.tag_bind('section_header_' + str(n), '<Leave>', self.on_section_leave)
             self.cursorText.tag_configure('section_hidden_' + str(n), elide=True)
             self.cursorText.tag_configure('section_' + str(n))
-        
+
         self.cursorText.config(state='disabled')
 
     def on_link_enter(self, event):
@@ -560,7 +540,7 @@ class CursorOutputFrame(ttk.Frame):
 
     def on_section_click(self, event):
         curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
-        
+
         next_section = None
         curLev = 0
         for n in range(CursorOutputFrame._MAX_DEEP):
@@ -573,7 +553,7 @@ class CursorOutputFrame(ttk.Frame):
             elif new_next_section:
                 next_section = new_next_section
                 curLev = n
-        
+
         if next_section:
             self.cursorText.config(state='normal')
             cur_header = self.cursorText.tag_prevrange('section_header_'+str(curLev), next_section[0])
@@ -609,96 +589,107 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorList.append(cursor)
         else:
             self.cursorText.insert('end', str(cursor))
-    
-    def _add_attr(self, obj, attr, attrName, attrType, attrOk, prefix='', level=0):
+
+    def _add_attr(self, objStack, attrName):
+        obj = objStack[-1]
+        deep = len(objStack) - 1
+        prefix = '\t' * deep
+
+        # set default values
+        attrData = None
+        attrDataTag = None
+        attrTypeTag = 'attr_type'
+
+        try:
+            attrData = getattr(obj, attrName)
+            attrType = attrData.__class__.__name__
+            if attrType in CursorOutputFrame._ignore_types:
+                return
+        except BaseException as e:
+            attrType = e.__class__.__name__ + ' => do not use this'
+            attrTypeTag = 'attr_err'
+
+        if is_instance_methode(attrData):
+            attrType = attrType + ' ' + get_methode_prototype(attrData)
+            if is_simple_instance_methode(attrData):
+                try:
+                    attrData = attrData()
+                    attrType = attrType + ' => ' + attrData.__class__.__name__
+                except BaseException as e:
+                    attrData = e.__class__.__name__ + ' => do not use this'
+                    attrDataTag = 'attr_err'
+                if attrName == 'get_children':
+                    cnt = 0
+                    for c in attrData:
+                        cnt = cnt+1
+                    attrData = str(cnt) + ' children, see tree on the left'
+            else:
+                if attrName == 'get_template_argument_kind':
+                    nums = obj.get_num_template_arguments()
+                    attrData = ''
+                    if nums > 0:
+                        for n in range(nums):
+                            attrData = attrData + '(num='+str(n)+') = '
+                            attrData = attrData + str(obj.get_template_argument_kind(n)) + '\n'
+                # TODO
+                # get_template_argument_type
+                # get_template_argument_value
+                # get_template_argument_unsigned_value
+                # walk_preorder
+                # get_tokens
+
         self.cursorText.insert('end', prefix)
-        self.cursorText.insert('end', '[+] ', 'section_header_'+str(level))
+        self.cursorText.insert('end', '[+] ', 'section_header_'+str(deep))
         self.cursorText.insert('end', attrName, 'attr_name')
         self.cursorText.insert('end', ' (')
-        if attrOk:
-            self.cursorText.insert('end', attrType, 'attr_type')
-        else:
-            self.cursorText.insert('end', attrType, 'attr_err')
+        self.cursorText.insert('end', attrType, attrTypeTag)
         self.cursorText.insert('end', '):\n')
 
         startIdx = self.cursorText.index('end -1c')
-        
-        self.cursorText.insert('end', prefix+(' '*4))
-        if attrType == 'Cursor':
-            self._add_cursor(attr)
-        if attrType == 'Type':
-            self._add_obj(attr, prefix+'\t', level+1)
-        elif (isinstance(obj, clang.cindex.Cursor)
-            and (attrName in CursorOutputFrame._simple_cursor_methodes)):
-            self.cursorText.insert('end', '= ' + toStr(attr()))
-        elif (isinstance(obj, clang.cindex.Type)
-            and (attrName in CursorOutputFrame._simple_type_methodes)):
-            try:
-                self.cursorText.insert('end', '= ' + toStr(attr()))
-            except BaseException as e:
-                    self.cursorText.insert('end', e.__class__.__name__ + ' => do not use this', 'attr_err')
-        elif attrName in CursorOutputFrame._cursor_methodes:
-            self.cursorText.insert('end', '= ')
-            self._add_cursor(attr())
-        elif attrName in CursorOutputFrame._cursors_methodes:
-            args = attr()
-            isFirst = True
-            self.cursorText.insert('end', '= [')
-            for arg in args:
-                if not isFirst:
-                    self.cursorText.insert('end', prefix+(' '*4))
-                    self.cursorText.insert('end', '   ')
-                isFirst = False
-                self._add_cursor(arg)
-                self.cursorText.insert('end', ',\n')
-            if not isFirst:
-                self.cursorText.delete('end - 3 chars', 'end')
-            self.cursorText.insert('end', ']')
-        elif attrName == 'get_template_argument_kind':
-            nums = obj.get_num_template_arguments()
-            if nums > 0:
-                for n in range(nums):
-                    self.cursorText.insert('end', '(num='+str(n)+') = ')
-                    self.cursorText.insert('end', str(obj.get_template_argument_kind(n))+'\n')
-        # TODO
-        # get_template_argument_type
-        # get_template_argument_value
-        # get_template_argument_unsigned_value
-        elif attrName == 'get_children':
-            self.cursorText.insert('end', 'see tree on the left')
-        # TODO
-        # walk_preorder
-        # get_tokens
-        else:
-            self.cursorText.insert('end', toStr(attr))
-        
-        self.cursorText.insert('end', '\n')
-        endIdx = self.cursorText.index('end -1c')
-        
-        self.cursorText.tag_add('section_'+str(level), startIdx, endIdx)
-        self.cursorText.tag_add('section_hidden_'+str(level), startIdx, endIdx)
 
-    def _add_obj(self, obj, prefix='', level=0):
-        if obj:
+        if isinstance(attrData, clang.cindex.Cursor):
+            self.cursorText.insert('end', prefix + '    ')
+            self._add_cursor(attrData)
+            self.cursorText.insert('end', '\n')
+        elif isinstance(attrData, clang.cindex.Type):
+            if attrData not in objStack:
+                if (deep+1) < CursorOutputFrame._MAX_DEEP:
+                    objStack.append(attrData)
+                    self._add_obj(objStack)
+                    objStack.pop()
+                else:
+                    self.cursorText.insert('end', prefix + '    ')
+                    self.cursorText.insert('end',
+                                          'To deep to show ' + toStr(attrData),
+                                          attrDataTag)
+                    self.cursorText.insert('end', '\n')
+            else:
+                self.cursorText.insert('end', prefix + '    ')
+                self.cursorText.insert('end',
+                                       toStr(attrData) + ' already shown!',
+                                       attrDataTag)
+                self.cursorText.insert('end', '\n')
+        else:
+            self.cursorText.insert('end', prefix + '    ')
+            self.cursorText.insert('end', toStr(attrData), attrDataTag)
+            self.cursorText.insert('end', '\n')
+
+        #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
+        endIdx = self.cursorText.index('end -1c')
+        #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can't be hidden
+
+        self.cursorText.tag_add('section_'+str(deep), startIdx, endIdx)
+        self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
+
+    def _add_obj(self, objStack):
+        if objStack and (len(objStack) > 0):
+            obj = objStack[-1]
             attrs = dir(obj)
             for attrName in attrs:
                 # ignore all starts with '_'
                 if attrName[0] == '_':
                     continue
-                attrType = None
-                attrVal = None
-                val = None
-                attrOk = False
-                try:
-                    val = getattr(obj, attrName)
-                    attrType = val.__class__.__name__
-                    if attrType in CursorOutputFrame._ignore_types:
-                        continue
-                    attrOk = True
-                except BaseException as e:
-                    attrType = e.__class__.__name__ + ' => do not use this'
-                
-                self._add_attr(obj, val, attrName, attrType, attrOk, prefix, level)
+                self._add_attr(objStack, attrName)
 
     def set_cursor(self, c):
         if not isinstance(c, clang.cindex.Cursor):
@@ -711,7 +702,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursor = c
         self.cursorText.config(state='normal')
         self.cursorText.delete('1.0', 'end')
-        self._add_obj(c)
+        self._add_obj([c])
 
         self.cursorText.config(state='disabled')
 
