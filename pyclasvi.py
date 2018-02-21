@@ -635,8 +635,6 @@ class CursorOutputFrame(ttk.Frame):
                 # get_template_argument_type
                 # get_template_argument_value
                 # get_template_argument_unsigned_value
-                # walk_preorder
-                # get_tokens
 
         self.cursorText.insert('end', prefix)
         self.cursorText.insert('end', '[+] ', 'section_header_'+str(deep))
@@ -646,6 +644,27 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.insert('end', '):\n')
 
         startIdx = self.cursorText.index('end -1c')
+
+
+        if hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
+            self.cursorText.insert('end', prefix + '    [\n')
+            for d in attrData:
+                self._add_attr_data(objStack, prefix+'   ', d, attrDataTag)
+                self.cursorText.delete('end -1c', 'end')
+                self.cursorText.insert('end', ',\n')
+            self.cursorText.insert('end', prefix + '    ]\n')
+        else:
+            self._add_attr_data(objStack, prefix, attrData, attrDataTag)
+
+        #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
+        endIdx = self.cursorText.index('end -1c')
+        #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can't be hidden
+
+        self.cursorText.tag_add('section_'+str(deep), startIdx, endIdx)
+        self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
+
+    def _add_attr_data(self, objStack, prefix, attrData, attrDataTag):
+        deep = len(objStack) - 1
 
         if isinstance(attrData, clang.cindex.Cursor):
             self.cursorText.insert('end', prefix + '    ')
@@ -673,13 +692,6 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', prefix + '    ')
             self.cursorText.insert('end', toStr(attrData), attrDataTag)
             self.cursorText.insert('end', '\n')
-
-        #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
-        endIdx = self.cursorText.index('end -1c')
-        #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can't be hidden
-
-        self.cursorText.tag_add('section_'+str(deep), startIdx, endIdx)
-        self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
 
     def _add_obj(self, objStack):
         if objStack and (len(objStack) > 0):
