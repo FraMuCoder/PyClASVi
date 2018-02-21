@@ -488,6 +488,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorList = []
 
     _MAX_DEEP = 5
+    _DATA_INDENT = '      '
 
     # ignore member with this types
     _ignore_types = ('function',)
@@ -510,9 +511,10 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.tag_bind('link', '<ButtonPress-1>', self.on_cursor_click)
         self.cursorText.tag_bind('link', '<Enter>', self.on_link_enter)
         self.cursorText.tag_bind('link', '<Leave>', self.on_link_leave)
+        self.cursorText.tag_configure('special', font=(defFontProp['family'], defFontProp['size'], 'italic'))
 
         for n in range(CursorOutputFrame._MAX_DEEP):
-            self.cursorText.tag_configure('section_header_' + str(n))
+            self.cursorText.tag_configure('section_header_' + str(n), foreground='gray')
             self.cursorText.tag_bind('section_header_' + str(n), "<ButtonPress-1>", self.on_section_click)
             self.cursorText.tag_bind('section_header_' + str(n), '<Enter>', self.on_section_enter)
             self.cursorText.tag_bind('section_header_' + str(n), '<Leave>', self.on_section_leave)
@@ -634,6 +636,7 @@ class CursorOutputFrame(ttk.Frame):
                     for c in attrData:
                         cnt = cnt+1
                     attrData = str(cnt) + ' children, see tree on the left'
+                    attrDataTag = 'special'
             else:
                 if attrName == 'get_template_argument_kind':
                     nums = obj.get_num_template_arguments()
@@ -648,7 +651,7 @@ class CursorOutputFrame(ttk.Frame):
                 # get_template_argument_unsigned_value
 
         self.cursorText.insert('end', prefix)
-        self.cursorText.insert('end', '[+] ', 'section_header_'+str(deep))
+        self.cursorText.insert('end', '[-] ', 'section_header_'+str(deep))
         self.cursorText.insert('end', attrName, 'attr_name')
         self.cursorText.insert('end', ' (')
         self.cursorText.insert('end', attrType, attrTypeTag)
@@ -656,29 +659,35 @@ class CursorOutputFrame(ttk.Frame):
 
         startIdx = self.cursorText.index('end -1c')
 
-
+        nested = False
         if hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
-            self.cursorText.insert('end', prefix + '    [\n')
+            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'[\n')
             for d in attrData:
                 self._add_attr_data(objStack, prefix+'   ', d, attrDataTag)
                 self.cursorText.delete('end -1c', 'end')
                 self.cursorText.insert('end', ',\n')
-            self.cursorText.insert('end', prefix + '    ]\n')
+            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+']\n')
+            nested = True
         else:
-            self._add_attr_data(objStack, prefix, attrData, attrDataTag)
+            nested = self._add_attr_data(objStack, prefix, attrData, attrDataTag)
 
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
         endIdx = self.cursorText.index('end -1c')
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can't be hidden
 
         self.cursorText.tag_add('section_'+str(deep), startIdx, endIdx)
-        self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
+        if nested:
+            cur_header = self.cursorText.tag_prevrange('section_header_'+str(deep), 'end')
+            self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
+            self.cursorText.insert(cur_header[0]+' +1c', '+')
+            self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
 
     def _add_attr_data(self, objStack, prefix, attrData, attrDataTag):
+        nested = False
         deep = len(objStack) - 1
 
         if isinstance(attrData, clang.cindex.Cursor):
-            self.cursorText.insert('end', prefix + '    ')
+            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
             self._add_cursor(attrData)
             self.cursorText.insert('end', '\n')
         elif (isinstance(attrData, clang.cindex.Type) 
@@ -689,23 +698,26 @@ class CursorOutputFrame(ttk.Frame):
                     self._add_obj(objStack)
                     objStack.pop()
                 else:
-                    self.cursorText.insert('end', prefix + '    ')
+                    self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
                     self.cursorText.insert('end',
                                           'To deep to show ' + toStr(attrData),
-                                          attrDataTag)
+                                          'special')
                     self.cursorText.insert('end', '\n')
             else:
-                self.cursorText.insert('end', prefix + '    ')
+                self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
                 self.cursorText.insert('end',
                                        toStr(attrData) + ' already shown!',
-                                       attrDataTag)
+                                       'special')
                 self.cursorText.insert('end', '\n')
+            nested = True
         else:
             lines = toStr(attrData).split('\n')
             for line in lines:
-                self.cursorText.insert('end', prefix + '    ')
+                self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
                 self.cursorText.insert('end', line, attrDataTag)
                 self.cursorText.insert('end', '\n')
+
+        return nested
 
     def _add_obj(self, objStack):
         if objStack and (len(objStack) > 0):
