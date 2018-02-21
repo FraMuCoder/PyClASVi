@@ -49,6 +49,9 @@ import re
 def toStr(data):
     if isinstance(data, bytes):
         return data.decode('ascii') # ASCII should be default in C/C++ but what about comments
+    elif isinstance(data, clang.cindex.SourceLocation):
+        return 'file:   {0}\nline:   {1}\ncolumn: {2}\noffset: {3}'.format(
+            data.file, data.line, data.column, data.offset)
     else:
         return str(data)
 
@@ -69,6 +72,14 @@ def get_methode_prototype(m):
     argSpec = inspect.getargspec(m)
     return inspect.formatargspec(*argSpec)
 
+
+# check if obj is in list
+def is_obj_in_stack(obj, objStack):
+    for o in objStack:
+        if o.__class__ == obj.__class__: # some compare function trow exception if types are not equal
+            if o == obj:
+                return True
+    return False
 
 # Cursor objects have a hash property but no __hash__ methode
 # You can use this class to make Cursor object hashable
@@ -670,8 +681,9 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', prefix + '    ')
             self._add_cursor(attrData)
             self.cursorText.insert('end', '\n')
-        elif isinstance(attrData, clang.cindex.Type):
-            if attrData not in objStack:
+        elif (isinstance(attrData, clang.cindex.Type) 
+              or isinstance(attrData, clang.cindex.SourceRange)):
+            if not is_obj_in_stack(attrData, objStack): #attrData not in objStack:
                 if (deep+1) < CursorOutputFrame._MAX_DEEP:
                     objStack.append(attrData)
                     self._add_obj(objStack)
@@ -689,9 +701,11 @@ class CursorOutputFrame(ttk.Frame):
                                        attrDataTag)
                 self.cursorText.insert('end', '\n')
         else:
-            self.cursorText.insert('end', prefix + '    ')
-            self.cursorText.insert('end', toStr(attrData), attrDataTag)
-            self.cursorText.insert('end', '\n')
+            lines = toStr(attrData).split('\n')
+            for line in lines:
+                self.cursorText.insert('end', prefix + '    ')
+                self.cursorText.insert('end', line, attrDataTag)
+                self.cursorText.insert('end', '\n')
 
     def _add_obj(self, objStack):
         if objStack and (len(objStack) > 0):
