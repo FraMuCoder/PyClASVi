@@ -717,7 +717,7 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
             self.cursorText.insert('end', '{0} ({0: #011x})'.format(attrData), attrDataTag)
             self.cursorText.insert('end', '\n')
-        elif isinstance(attrData, long):
+        elif (sys.version_info.major) == 2 and isinstance(attrData, long):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
             self.cursorText.insert('end', '{0} ({0: #019x})'.format(attrData), attrDataTag)
             self.cursorText.insert('end', '\n')
