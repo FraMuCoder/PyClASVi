@@ -488,6 +488,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorList = []
 
     _MAX_DEEP = 5
+    _MAX_ITER_OUT = 10
     _DATA_INDENT = '      '
 
     # ignore member with this types
@@ -662,10 +663,18 @@ class CursorOutputFrame(ttk.Frame):
         nested = False
         if hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'[\n')
+            cnt = 0
             for d in attrData:
-                self._add_attr_data(objStack, prefix+'   ', d, attrDataTag)
-                self.cursorText.delete('end -1c', 'end')
-                self.cursorText.insert('end', ',\n')
+                cnt = cnt+1
+                if cnt <= CursorOutputFrame._MAX_ITER_OUT:
+                    self._add_attr_data(objStack, prefix+'   ', d, attrDataTag)
+                    self.cursorText.delete('end -1c', 'end')
+                    self.cursorText.insert('end', ',\n')
+                else:
+                    self.cursorText.insert('end',
+                                           prefix+'   '+CursorOutputFrame._DATA_INDENT+'and some more...\n',
+                                           'special')
+                    break
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+']\n')
             nested = True
         else:
