@@ -49,6 +49,10 @@ import re
 def toStr(data):
     if isinstance(data, bytes):
         return data.decode('ascii') # ASCII should be default in C/C++ but what about comments
+    elif isinstance(data, clang.cindex.Cursor):
+        return '{0} ({1: #011x}) {2}'.format(data.kind.name,
+                                             data.hash,
+                                             data.displayname)
     elif isinstance(data, clang.cindex.SourceLocation):
         return 'file:   {0}\nline:   {1}\ncolumn: {2}\noffset: {3}'.format(
             data.file, data.line, data.column, data.offset)
@@ -325,73 +329,68 @@ class ASTOutputFrame(ttk.Frame):
     def create_widgets(self):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        
-        charSize = tkFont.nametofont('TkHeadingFont').measure('#')
-        
-        self.astView = ttk.Treeview(self, 
-                                    columns=('displayname'),
-                                    selectmode='browse')
+
+        charSize = tkFont.nametofont('TkFixedFont').measure('#')
+
+        self.astView = ttk.Treeview(self, selectmode='browse')
+        self.astView.tag_configure('default', font='TkFixedFont')
         self.astView.bind('<<TreeviewSelect>>', self.on_selection)
-        
+
         make_scrollable(self, self.astView)
-        
-        self.astView.heading('#0', text='Kind')
-        self.astView.column('#0', width=20*charSize, stretch=False)
-        self.astView.heading('displayname', text='Displayname')
-        self.astView.column('displayname', width=20*charSize, stretch=False)
+
+        self.astView.heading('#0', text='Cursor')
         self.astView.grid(row=0, column=0, sticky='nswe')
-    
+
     def on_selection(self, event):
-        #curItem = self.astView.focus()
         if self.selectCmd:
             self.selectCmd()
-    
+
     def set_select_cmd(self, cmd):
         self.selectCmd = cmd
-    
+
     def get_current_iid(self):
         return self.astView.focus()
-    
+
     def get_current_iids(self):
         cursor = self.get_current_cursor()
         if cursor:
             return self.mapCursorToIID[HashableObj(cursor)]
         else:
             return None
-    
+
     def get_current_cursor(self):
         curCursor = None
         curItem = self.astView.focus()
         if curItem:
             curCursor = self.mapIIDtoCursor[curItem]
         return curCursor
-    
+
     def set_current_iid(self, iid):
         self.astView.focus(iid)
         self.astView.selection_set(iid)
         self.astView.see(iid)
-        
+
     def set_current_cursor(self, cursor):
         iid = self.mapCursorToIID[HashableObj(cursor)]
         if isinstance(iid, list): # partly multimap
             iid = iid[0]
         self.set_current_iid(iid)
-    
+
     def clear(self):
         for i in self.astView.get_children():
             self.astView.delete(i)
         self.translationunit = None
         self.mapIIDtoCursor = {}
         self.mapCursorToIID = {}
-    
+
     def _insert_children(self, cursor, iid, deep=1):
         cntChildren = 0
         for childCursor in cursor.get_children():
             cntChildren = cntChildren + 1
             newIID = self.astView.insert(iid,
                                         'end',
-                                        text=childCursor.kind.name,
-                                        values=[toStr(childCursor.displayname)])
+                                        text=toStr(childCursor),
+                                        tags=['default'])
             self.mapIIDtoCursor[newIID] = childCursor
             hCursor = HashableObj(childCursor)
             if hCursor in self.mapCursorToIID: # already in map, make a partly multimap
@@ -407,13 +406,13 @@ class ASTOutputFrame(ttk.Frame):
                 self.mapCursorToIID[hCursor] = newIID
             self._insert_children(childCursor, newIID, deep+1)
             self.cntCursors = self.cntCursors + 1
-        
+
         if cntChildren > 0:
             if cntChildren > self.cntMaxChildren:
                 self.cntMaxChildren = cntChildren
             if deep > self.cntMaxDeep:
                 self.cntMaxDeep = deep
-    
+
     def set_translationunit(self, tu):
         self.cntCursors = 1
         self.cntDouble = 0
@@ -425,17 +424,17 @@ class ASTOutputFrame(ttk.Frame):
         root = tu.cursor
         iid = self.astView.insert('',
                                   'end',
-                                  text=root.kind.name,
-                                  values=[toStr(root.displayname)])
+                                  text=toStr(root),
+                                  tags=['default'])
         self.mapIIDtoCursor[iid] = root
         self.mapCursorToIID[HashableObj(root)] = iid
         self._insert_children(root, iid)
-        
+
         # some statistics
         print('AST has {0} cursors including {1} doubles.'.format(self.cntCursors, self.cntDouble))
         print('max doubles: {0}, max children {1}, max deep {2}'.format(
             self.cntMaxDoubles, self.cntMaxChildren, self.cntMaxDeep))
-    
+
     def search(self, **kwargs):
         result = []
         useCursorKind = kwargs['use_CursorKind']
@@ -454,7 +453,7 @@ class ASTOutputFrame(ttk.Frame):
                 return result
         elif caseInsensitive:
             spelling = spelling.lower()
-        
+
         for iid in self.mapIIDtoCursor:
             cursor = self.mapIIDtoCursor[iid]
             found = True
@@ -464,16 +463,16 @@ class ASTOutputFrame(ttk.Frame):
                 if useRegEx:
                     if not reObj.match(toStr(cursor.spelling)):
                         found = False
-                    
+
                 elif caseInsensitive:
                     found = spelling == toStr(cursor.spelling).lower()
                 else:
                     found = spelling == toStr(cursor.spelling)
             if found:
                 result.append(iid)
-        
+
         result.sort()
-        
+
         return result
 
 
@@ -593,12 +592,7 @@ class CursorOutputFrame(ttk.Frame):
         # Therfore Cursor == None will not work so we use a try
         if isinstance(cursor, clang.cindex.Cursor):
             self.cursorText.insert('end', 
-                                'Cursor ' + 
-                                str(cursor.hash) + 
-                                ' ' +
-                                cursor.kind.name +
-                                ' / ' + 
-                                toStr(cursor.displayname),
+                                toStr(cursor),
                                 'link')
             self.cursorList.append(cursor)
         else:
@@ -719,6 +713,14 @@ class CursorOutputFrame(ttk.Frame):
                                        'special')
                 self.cursorText.insert('end', '\n')
             nested = True
+        elif attrData.__class__ == int: # not bool
+            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
+            self.cursorText.insert('end', '{0} ({0: #011x})'.format(attrData), attrDataTag)
+            self.cursorText.insert('end', '\n')
+        elif isinstance(attrData, long):
+            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
+            self.cursorText.insert('end', '{0} ({0: #019x})'.format(attrData), attrDataTag)
+            self.cursorText.insert('end', '\n')
         else:
             lines = toStr(attrData).split('\n')
             for line in lines:
