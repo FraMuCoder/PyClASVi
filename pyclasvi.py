@@ -18,9 +18,7 @@
 #   Filter for severity level
 #   Colored output depends on severity
 # Output frame
-#   Add missing member outputs (see comments in class CursorOutputFrame)
 #   Output Tokens
-#   Output all other used class types
 
 import sys
 
@@ -49,8 +47,14 @@ import re
 def toStr(data):
     if isinstance(data, bytes):
         return data.decode('ascii') # ASCII should be default in C/C++ but what about comments
+    elif ((data.__class__ == int) # int but not bool
+          or (sys.version_info.major) == 2 and isinstance(data, long)):
+        if data < 0:
+            return str(data)
+        else:
+            return '{0} ({0:#010x})'.format(data)
     elif isinstance(data, clang.cindex.Cursor):
-        return '{0} ({1: #011x}) {2}'.format(data.kind.name,
+        return '{0} ({1:#010x}) {2}'.format(data.kind.name,
                                              data.hash,
                                              data.displayname)
     elif isinstance(data, clang.cindex.SourceLocation):
@@ -598,10 +602,10 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', str(cursor))
 
-    def _add_attr(self, objStack, attrName):
+    def _add_attr(self, objStack, attrName, extraPrefix):
         obj = objStack[-1]
         deep = len(objStack) - 1
-        prefix = '\t' * deep
+        prefix = '\t' * deep + extraPrefix
 
         # set default values
         attrData = None
@@ -632,18 +636,6 @@ class CursorOutputFrame(ttk.Frame):
                         cnt = cnt+1
                     attrData = str(cnt) + ' children, see tree on the left'
                     attrDataTag = 'special'
-            else:
-                if attrName == 'get_template_argument_kind':
-                    nums = obj.get_num_template_arguments()
-                    attrData = ''
-                    if nums > 0:
-                        for n in range(nums):
-                            attrData = attrData + '(num='+str(n)+') = '
-                            attrData = attrData + str(obj.get_template_argument_kind(n)) + '\n'
-                # TODO
-                # get_template_argument_type
-                # get_template_argument_value
-                # get_template_argument_unsigned_value
 
         self.cursorText.insert('end', prefix)
         self.cursorText.insert('end', '[-] ', 'section_header_'+str(deep))
@@ -655,13 +647,28 @@ class CursorOutputFrame(ttk.Frame):
         startIdx = self.cursorText.index('end -1c')
 
         nested = False
-        if hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
+        if attrName in ('get_template_argument_kind',
+                        'get_template_argument_type',
+                        'get_template_argument_value',
+                        'get_template_argument_unsigned_value'):
+            nums = obj.get_num_template_arguments()
+            if nums > 0:
+                for n in range(nums):
+                    result = attrData(n)
+                    self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'(num='+str(n)+') => ')
+                    self.cursorText.insert('end', result.__class__.__name__, 'attr_type')
+                    self.cursorText.insert('end', '\n')
+                    self._add_attr_data(objStack, extraPrefix+'   ', result, attrDataTag)
+            else:
+                self.cursorText.insert('end', '\n')
+            nested = True
+        elif hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'[\n')
             cnt = 0
             for d in attrData:
                 cnt = cnt+1
                 if cnt <= CursorOutputFrame._MAX_ITER_OUT:
-                    self._add_attr_data(objStack, prefix+'   ', d, attrDataTag)
+                    self._add_attr_data(objStack, extraPrefix+'   ', d, attrDataTag)
                     self.cursorText.delete('end -1c', 'end')
                     self.cursorText.insert('end', ',\n')
                 else:
@@ -672,7 +679,7 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+']\n')
             nested = True
         else:
-            nested = self._add_attr_data(objStack, prefix, attrData, attrDataTag)
+            nested = self._add_attr_data(objStack, extraPrefix, attrData, attrDataTag)
 
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
         endIdx = self.cursorText.index('end -1c')
@@ -685,9 +692,10 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert(cur_header[0]+' +1c', '+')
             self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
 
-    def _add_attr_data(self, objStack, prefix, attrData, attrDataTag):
+    def _add_attr_data(self, objStack, extraPrefix, attrData, attrDataTag):
         nested = False
         deep = len(objStack) - 1
+        prefix = '\t' * deep + extraPrefix
 
         if isinstance(attrData, clang.cindex.Cursor):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
@@ -698,7 +706,7 @@ class CursorOutputFrame(ttk.Frame):
             if not is_obj_in_stack(attrData, objStack): #attrData not in objStack:
                 if (deep+1) < CursorOutputFrame._MAX_DEEP:
                     objStack.append(attrData)
-                    self._add_obj(objStack)
+                    self._add_obj(objStack, extraPrefix)
                     objStack.pop()
                 else:
                     self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
@@ -713,14 +721,6 @@ class CursorOutputFrame(ttk.Frame):
                                        'special')
                 self.cursorText.insert('end', '\n')
             nested = True
-        elif attrData.__class__ == int: # not bool
-            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
-            self.cursorText.insert('end', '{0} ({0: #011x})'.format(attrData), attrDataTag)
-            self.cursorText.insert('end', '\n')
-        elif (sys.version_info.major) == 2 and isinstance(attrData, long):
-            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
-            self.cursorText.insert('end', '{0} ({0: #019x})'.format(attrData), attrDataTag)
-            self.cursorText.insert('end', '\n')
         else:
             lines = toStr(attrData).split('\n')
             for line in lines:
@@ -730,7 +730,7 @@ class CursorOutputFrame(ttk.Frame):
 
         return nested
 
-    def _add_obj(self, objStack):
+    def _add_obj(self, objStack, extraPrefix=''):
         if objStack and (len(objStack) > 0):
             obj = objStack[-1]
             attrs = dir(obj)
@@ -738,7 +738,7 @@ class CursorOutputFrame(ttk.Frame):
                 # ignore all starts with '_'
                 if attrName[0] == '_':
                     continue
-                self._add_attr(objStack, attrName)
+                self._add_attr(objStack, attrName, extraPrefix)
 
     def set_cursor(self, c):
         if not isinstance(c, clang.cindex.Cursor):
@@ -788,7 +788,7 @@ class FileOutputFrame(ttk.Frame):
         self.fileText.tag_remove('location', '1.0', 'end')
 
         newFileName = None
-        if isinstance(srcRange, clang.cindex.SourceRange):
+        if isinstance(srcRange, clang.cindex.SourceRange) and srcRange.start.file:
             newFileName = srcRange.start.file.name
         elif (isinstance(srcLocation, clang.cindex.SourceLocation) and
               srcLocation.file):
