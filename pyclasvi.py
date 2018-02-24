@@ -621,7 +621,12 @@ class CursorOutputFrame(ttk.Frame):
             attrType = e.__class__.__name__ + ' => do not use this'
             attrTypeTag = 'attr_err'
 
-        if is_instance_methode(attrData):
+        if (isinstance(obj, clang.cindex.Type)
+            and (obj.kind == clang.cindex.TypeKind.INVALID)
+            and (attrName in ('get_address_space', 'get_typedef_name'))):
+            attrData = 'Do not uses this if kind is TypeKind.INVALID!'
+            attrDataTag = 'attr_err'
+        elif is_instance_methode(attrData):
             attrType = attrType + ' ' + get_methode_prototype(attrData)
             if is_simple_instance_methode(attrData):
                 try:
