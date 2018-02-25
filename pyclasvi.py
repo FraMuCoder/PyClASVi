@@ -89,7 +89,7 @@ def is_obj_in_stack(obj, objStack):
                 return True
     return False
 
-# Cursor objects have a hash property but no __hash__ methode
+# Cursor objects have a hash property but no __hash__ method
 # You can use this class to make Cursor object hashable
 class HashableObj:
     def __init__(self, obj):
@@ -480,6 +480,36 @@ class ASTOutputFrame(ttk.Frame):
         return result
 
 
+# Helper class to represent un-/folded sections
+class FoldSection:
+    def __init__(self, show):
+        self.show = show
+        self.members = None
+
+    def insert(self, elem):
+        if not self.members:
+            self.members = []
+        if isinstance(elem, FoldSection):
+            newFS = elem
+        else:
+            newFS = FoldSection(show)
+        self.members.append(newFS)
+        return newFS
+
+    def apply(self, other):
+        if not isinstance(other, FoldSection):
+            return
+        self.show = other.show
+        if self.members:
+            if other.members:
+                if len(self.members) == len(other.members):
+                    for n in range(len(self.members)):
+                        self.members[n].apply(other.members[n])
+                else:
+                    print('Something gone wrong')
+        else:
+            self.members = other.members
+
 # Output nearly all members of the selected Cursor object
 class CursorOutputFrame(ttk.Frame):
     def __init__(self, master=None, selectCmd=None):
@@ -489,6 +519,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursor = None
         self.selectCmd = selectCmd
         self.cursorList = []
+        self.foldMap = FoldSection(True)
 
     _MAX_DEEP = 5
     _MAX_ITER_OUT = 10
@@ -584,6 +615,61 @@ class CursorOutputFrame(ttk.Frame):
                 self.cursorText.insert(cur_header[0]+' +1c', '+')
             self.cursorText.config(state='disabled')
 
+    def get_fold_map(self):
+        foldMap = FoldSection(True)
+        sections = []
+        hiddenSections = []
+        pos = []
+        hiddenPos = []
+        foldSections = [] # one per level
+        for n in range(CursorOutputFrame._MAX_DEEP):
+            secs = self.cursorText.tag_ranges('section_'+str(n))
+            sections.append(list(zip(secs[0::2], secs[1::2])))
+            secs = self.cursorText.tag_ranges('section_hidden_'+str(n))
+            hiddenSections.append(list(zip(secs[0::2], secs[1::2])))
+            pos.append(0)
+            hiddenPos.append(0)
+            foldSections.append(None)
+
+        level = 0
+        while pos[0] < len(sections[0]):
+            if pos[level] < len(sections[level]):       # not the end of cur level
+                start = sections[level][pos[level]][0]
+                if level > 0:
+                    outerEnd = sections[level-1][pos[level-1]][1]
+                    if self.cursorText.compare(start, '>', outerEnd):   # cur ist outside parent?
+                        level -= 1                                      # go back to parent
+                        if level >= 0:
+                            pos[level] += 1                             # and there to the next section
+                        continue
+
+                end = sections[level][pos[level]][1]
+                show = True
+                if hiddenPos[level] < len(hiddenSections[level]):                # there are still hidden sections?
+                    hiddenStart = hiddenSections[level][hiddenPos[level]][0]
+                    show = not self.cursorText.compare(start, '==', hiddenStart) # cur is hidden?
+                foldSections[level] = FoldSection(show)
+                if level == 0:
+                    foldMap.insert(foldSections[0])
+                else:
+                    foldSections[level-1].insert(foldSections[level])
+
+                if not show:              # hidden section found and match?
+                    hiddenPos[level] += 1 # marker to next hidden section
+                if (((level+1) < CursorOutputFrame._MAX_DEEP)          # not last level?
+                    and (pos[level+1] < len(sections[level+1]))):      # not all in next level precessed?
+                    innerStart = sections[level+1][pos[level+1]][0]
+                    if self.cursorText.compare(innerStart, '<=', end): # next level section is inner cur?
+                        level += 1                                     # go to next level
+                        continue   # do not count up pos[level-1] because we still need it
+                pos[level] += 1
+            else:                                       # cur level ends
+                level -= 1                              # go back to parent
+                if level >= 0:
+                    pos[level] += 1                     # and there to the next section
+
+        return foldMap
+
     def clear(self):
         self.cursorText.config(state='normal')
         self.cursorText.delete('1.0', 'end')
@@ -602,7 +688,7 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', str(cursor))
 
-    def _add_attr(self, objStack, attrName, extraPrefix):
+    def _add_attr(self, objStack, attrName, foldMap, extraPrefix):
         obj = objStack[-1]
         deep = len(objStack) - 1
         prefix = '\t' * deep + extraPrefix
@@ -616,7 +702,7 @@ class CursorOutputFrame(ttk.Frame):
             attrData = getattr(obj, attrName)
             attrType = attrData.__class__.__name__
             if attrType in CursorOutputFrame._ignore_types:
-                return
+                return False # no new section created
         except BaseException as e:
             attrType = e.__class__.__name__ + ' => do not use this'
             attrTypeTag = 'attr_err'
@@ -651,7 +737,6 @@ class CursorOutputFrame(ttk.Frame):
 
         startIdx = self.cursorText.index('end -1c')
 
-        nested = False
         if attrName in ('get_template_argument_kind',
                         'get_template_argument_type',
                         'get_template_argument_value',
@@ -663,17 +748,16 @@ class CursorOutputFrame(ttk.Frame):
                     self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'(num='+str(n)+') => ')
                     self.cursorText.insert('end', result.__class__.__name__, 'attr_type')
                     self.cursorText.insert('end', '\n')
-                    self._add_attr_data(objStack, extraPrefix+'   ', result, attrDataTag)
+                    self._add_attr_data(objStack, foldMap, extraPrefix+'   ', result, attrDataTag)
             else:
                 self.cursorText.insert('end', '\n')
-            nested = True
         elif hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'[\n')
             cnt = 0
             for d in attrData:
                 cnt = cnt+1
                 if cnt <= CursorOutputFrame._MAX_ITER_OUT:
-                    self._add_attr_data(objStack, extraPrefix+'   ', d, attrDataTag)
+                    self._add_attr_data(objStack, foldMap, extraPrefix+'   ', d, attrDataTag)
                     self.cursorText.delete('end -1c', 'end')
                     self.cursorText.insert('end', ',\n')
                 else:
@@ -682,23 +766,27 @@ class CursorOutputFrame(ttk.Frame):
                                            'special')
                     break
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+']\n')
-            nested = True
         else:
-            nested = self._add_attr_data(objStack, extraPrefix, attrData, attrDataTag)
+            self._add_attr_data(objStack, foldMap, extraPrefix, attrData, attrDataTag)
 
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
         endIdx = self.cursorText.index('end -1c')
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can't be hidden
 
         self.cursorText.tag_add('section_'+str(deep), startIdx, endIdx)
-        if nested:
+        if foldMap:
+            hide = not foldMap.show
+        else:
+            hide = True
+        if hide:
             cur_header = self.cursorText.tag_prevrange('section_header_'+str(deep), 'end')
             self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
             self.cursorText.insert(cur_header[0]+' +1c', '+')
             self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
 
-    def _add_attr_data(self, objStack, extraPrefix, attrData, attrDataTag):
-        nested = False
+        return True # new section created
+
+    def _add_attr_data(self, objStack, foldMap, extraPrefix, attrData, attrDataTag):
         deep = len(objStack) - 1
         prefix = '\t' * deep + extraPrefix
 
@@ -711,7 +799,7 @@ class CursorOutputFrame(ttk.Frame):
             if not is_obj_in_stack(attrData, objStack): #attrData not in objStack:
                 if (deep+1) < CursorOutputFrame._MAX_DEEP:
                     objStack.append(attrData)
-                    self._add_obj(objStack, extraPrefix)
+                    self._add_obj(objStack, foldMap, extraPrefix)
                     objStack.pop()
                 else:
                     self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
@@ -725,7 +813,6 @@ class CursorOutputFrame(ttk.Frame):
                                        toStr(attrData) + ' already shown!',
                                        'special')
                 self.cursorText.insert('end', '\n')
-            nested = True
         else:
             lines = toStr(attrData).split('\n')
             for line in lines:
@@ -733,19 +820,28 @@ class CursorOutputFrame(ttk.Frame):
                 self.cursorText.insert('end', line, attrDataTag)
                 self.cursorText.insert('end', '\n')
 
-        return nested
+        return
 
-    def _add_obj(self, objStack, extraPrefix=''):
+    def _add_obj(self, objStack, foldMap, extraPrefix=''):
         if objStack and (len(objStack) > 0):
             obj = objStack[-1]
             attrs = dir(obj)
+            attIdx = 0
+            subFoldMap = None
             for attrName in attrs:
                 # ignore all starts with '_'
                 if attrName[0] == '_':
                     continue
-                self._add_attr(objStack, attrName, extraPrefix)
+                if foldMap and foldMap.members:
+                    subFoldMap = foldMap.members[attIdx]
+                res = self._add_attr(objStack, attrName, subFoldMap, extraPrefix)
+                if res:
+                    attIdx += 1
 
     def set_cursor(self, c):
+        curFoldMap = self.get_fold_map()
+        self.foldMap.apply(curFoldMap);
+
         if not isinstance(c, clang.cindex.Cursor):
             self.clear()
             return
@@ -756,7 +852,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursor = c
         self.cursorText.config(state='normal')
         self.cursorText.delete('1.0', 'end')
-        self._add_obj([c])
+        self._add_obj([c], self.foldMap)
 
         self.cursorText.config(state='disabled')
 
