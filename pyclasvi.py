@@ -520,6 +520,7 @@ class CursorOutputFrame(ttk.Frame):
         self.selectCmd = selectCmd
         self.cursorList = []
         self.foldMap = FoldSection(True)
+        self.defaultHide = True
 
     _MAX_DEEP = 5
     _MAX_ITER_OUT = 10
@@ -536,6 +537,7 @@ class CursorOutputFrame(ttk.Frame):
         defFontProp = defFont.actual()
         self.cursorText = tk.Text(self, wrap="none")
         self.cursorText.grid(row=0, sticky='nswe')
+        self.cursorText.bind('<Button-3>', self.on_right_click)
 
         make_scrollable(self, self.cursorText)
 
@@ -580,6 +582,12 @@ class CursorOutputFrame(ttk.Frame):
                 break
             listIdx += 1
 
+    def on_right_click(self, event):
+        menu = tk.Menu(None, tearoff=0)
+        menu.add_command(label='Expand all', command=self.expand_all)
+        menu.add_command(label='Collapse all', command=self.collapse_all)
+        menu.tk_popup(event.x_root, event.y_root)
+
     def on_section_enter(self, event):
         self.cursorText.configure(cursor='arrow')
 
@@ -614,6 +622,30 @@ class CursorOutputFrame(ttk.Frame):
                 self.cursorText.tag_add('section_hidden_'+str(curLev), next_section[0], next_section[1])
                 self.cursorText.insert(cur_header[0]+' +1c', '+')
             self.cursorText.config(state='disabled')
+
+    def expand_all(self):
+        self.defaultHide = True
+        self.cursorText.config(state='normal')
+        for n in range(CursorOutputFrame._MAX_DEEP):
+            secs = self.cursorText.tag_ranges('section_'+str(n))
+            for start, end in zip(secs[0::2], secs[1::2]):
+                cur_header = self.cursorText.tag_prevrange('section_header_'+str(n), start)
+                self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
+                self.cursorText.tag_remove('section_hidden_'+str(n), start, end)
+                self.cursorText.insert(cur_header[0]+' +1c', '-')
+        self.cursorText.config(state='disabled')
+
+    def collapse_all(self):
+        self.defaultHide = True
+        self.cursorText.config(state='normal')
+        for n in range(CursorOutputFrame._MAX_DEEP):
+            secs = self.cursorText.tag_ranges('section_'+str(n))
+            for start, end in zip(secs[0::2], secs[1::2]):
+                cur_header = self.cursorText.tag_prevrange('section_header_'+str(n), start)
+                self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
+                self.cursorText.tag_add('section_hidden_'+str(n), start, end)
+                self.cursorText.insert(cur_header[0]+' +1c', '+')
+        self.cursorText.config(state='disabled')
 
     def get_fold_map(self):
         foldMap = FoldSection(True)
@@ -777,7 +809,7 @@ class CursorOutputFrame(ttk.Frame):
         if foldMap:
             hide = not foldMap.show
         else:
-            hide = True
+            hide = self.defaultHide
         if hide:
             cur_header = self.cursorText.tag_prevrange('section_header_'+str(deep), 'end')
             self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
