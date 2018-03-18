@@ -798,24 +798,29 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', str(cursor))
 
-    def _add_attr(self, objStack, attrName, foldNode, extraPrefix):
+    def _add_attr(self, objStack, attrName, foldNode, extraPrefix, index=-1):
         obj = objStack[-1]
         deep = len(objStack) - 1
         prefix = '\t' * deep + extraPrefix
+        isIterData = index >= 0
 
         # set default values
         attrData = None
         attrDataTag = None
         attrTypeTag = 'attr_type'
 
-        try:
-            attrData = getattr(obj, attrName)
+        if not isIterData:
+            try:
+                attrData = getattr(obj, attrName)
+                attrType = attrData.__class__.__name__
+                if attrType in CursorOutputFrame._ignore_types:
+                    return False # no new section created
+            except BaseException as e:
+                attrType = e.__class__.__name__ + ' => do not use this'
+                attrTypeTag = 'attr_err'
+        else:
+            attrData = obj
             attrType = attrData.__class__.__name__
-            if attrType in CursorOutputFrame._ignore_types:
-                return False # no new section created
-        except BaseException as e:
-            attrType = e.__class__.__name__ + ' => do not use this'
-            attrTypeTag = 'attr_err'
 
         if (isinstance(obj, clang.cindex.Type)
             and (obj.kind == clang.cindex.TypeKind.INVALID)
@@ -840,10 +845,14 @@ class CursorOutputFrame(ttk.Frame):
 
         self.cursorText.insert('end', prefix)
         self.cursorText.insert('end', '[-] ', 'section_header_'+str(deep))
-        if foldNode and (self.foldTree.get_marker() == foldNode):
-            attTags = ('attr_name', 'attr_name_marked')
+
+        if not isIterData:
+            if foldNode and (self.foldTree.get_marker() == foldNode):
+                attTags = ('attr_name', 'attr_name_marked')
+            else:
+                attTags = 'attr_name'
         else:
-            attTags = 'attr_name'
+            attTags = ()
         self.cursorText.insert('end', attrName, attTags)
         self.cursorText.insert('end', ' (')
         self.cursorText.insert('end', attrType, attrTypeTag)
@@ -859,29 +868,30 @@ class CursorOutputFrame(ttk.Frame):
             if nums > 0:
                 for n in range(nums):
                     result = attrData(n)
-                    self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'(num='+str(n)+') => ')
-                    self.cursorText.insert('end', result.__class__.__name__, 'attr_type')
-                    self.cursorText.insert('end', '\n')
-                    self._add_attr_data(objStack, foldNode, extraPrefix+'   ', result, attrDataTag)
+                    subFoldNode = None
+                    objStack.append(result)
+                    self._add_attr(objStack, 'num='+str(n), subFoldNode, extraPrefix, n)
+                    objStack.pop()
             else:
                 self.cursorText.insert('end', '\n')
         elif hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'[\n')
             cnt = 0
             for d in attrData:
-                cnt = cnt+1
-                if cnt <= CursorOutputFrame._MAX_ITER_OUT:
-                    self._add_attr_data(objStack, foldNode, extraPrefix+'   ', d, attrDataTag)
-                    self.cursorText.delete('end -1c', 'end')
-                    self.cursorText.insert('end', ',\n')
+                if cnt < CursorOutputFrame._MAX_ITER_OUT:
+                    subFoldNode = None
+                    objStack.append(d)
+                    self._add_attr(objStack, str(cnt), subFoldNode, extraPrefix, cnt)
+                    objStack.pop()
                 else:
                     self.cursorText.insert('end',
                                            prefix+'   '+CursorOutputFrame._DATA_INDENT+'and some more...\n',
                                            'special')
                     break
+                cnt = cnt+1
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+']\n')
         else:
-            self._add_attr_data(objStack, foldNode, extraPrefix, attrData, attrDataTag)
+            self._add_attr_data(objStack, foldNode, extraPrefix, attrData, attrDataTag, isIterData)
 
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
         endIdx = self.cursorText.index('end -1c')
@@ -900,7 +910,7 @@ class CursorOutputFrame(ttk.Frame):
 
         return True # new section created
 
-    def _add_attr_data(self, objStack, foldNode, extraPrefix, attrData, attrDataTag):
+    def _add_attr_data(self, objStack, foldNode, extraPrefix, attrData, attrDataTag, isIterData):
         deep = len(objStack) - 1
         prefix = '\t' * deep + extraPrefix
 
@@ -910,7 +920,11 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', '\n')
         elif (isinstance(attrData, clang.cindex.Type) 
               or isinstance(attrData, clang.cindex.SourceRange)):
-            if not is_obj_in_stack(attrData, objStack): #attrData not in objStack:
+            if isIterData:
+                cmpStack = objStack[:-1]
+            else:
+                cmpStack = objStack
+            if not is_obj_in_stack(attrData, cmpStack): #attrData not in objStack:
                 if (deep+1) < CursorOutputFrame._MAX_DEEP:
                     objStack.append(attrData)
                     self._add_obj(objStack, foldNode, extraPrefix)
