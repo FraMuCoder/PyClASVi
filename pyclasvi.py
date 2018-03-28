@@ -495,46 +495,75 @@ class FoldSectionTree:
     def get_marker(self):
         return self.marker
 
-    def apply(self, other):
-        if not isinstance(other, FoldSectionTree):
-            return
-        self.root.apply(self, other.root, other)
+    def set_all_show(self, show):
+        FoldSection.show_default = show
+        self.root.set_all_show(show)
+
+    def clear_lines(self):
+        self.root.clear_lines()
+
+    def find_section(self, startLine):
+        return self._find_section(startLine, self.root.members)
+
+    def _find_section(self, startLine, sectionList):
+        if sectionList:
+            lastSec = None
+            for sec in sectionList:
+                if sec.startLine == startLine:
+                    return sec
+                elif sec.startLine < startLine:
+                    lastSec = sec
+                else:
+                    break
+            if lastSec:
+                return self._find_section(startLine, lastSec.members)
+            else:
+                return None
+        else:
+            return None
 
 
 # Node in FoldSectionTree
 class FoldSection:
     def __init__(self, show):
+        self.startLine = 0
         self.show = show
         self.members = None
+        self.parent = None
+        self.childNr = -1
 
-    def insert(self, elem):
+    show_default = False
+
+    def set_line(self, startLine):
+        self.startLine = startLine
+
+    def set_show(self, show):
+        self.show = show
+
+    def set_all_show(self, show):
+        self.show = show
+        if self.members:
+            for m in self.members:
+                m.set_all_show(show)
+
+    def get_child(self, num):
         if not self.members:
             self.members = []
-        if isinstance(elem, FoldSection):
-            newFS = elem
-        else:
-            newFS = FoldSection(show)
-        self.members.append(newFS)
-        return newFS
 
-    def apply(self, selfTree, other, otherTree):
-        if not isinstance(other, FoldSection):
-            return
-        self.show = other.show
+        while (num+1) > len(self.members):
+            newFS = FoldSection(FoldSection.show_default)
+            newFS.parent = self
+            newFS.childNr = num
+            self.members.append(newFS)
+
+        return self.members[num]
+
+    def clear_lines(self):
+        self.startLine = 0
         if self.members:
-            if other.members:
-                if len(self.members) == len(other.members):
-                    for n in range(len(self.members)):
-                        self.members[n].apply(selfTree, other.members[n], otherTree)
-                else:
-                    print('Something gone wrong')
-        else:
-            self.members = other.members
-            if other.members and otherTree.get_marker():
-                for n in range(len(self.members)):
-                    self.members[n].apply(selfTree, other.members[n], otherTree)
-        if (otherTree.get_marker() and (otherTree.get_marker() == other)):
-            selfTree.set_marker(self)
+            for m in self.members:
+                m.clear_lines()
+
 
 # Output nearly all members of the selected Cursor object
 class CursorOutputFrame(ttk.Frame):
@@ -546,9 +575,8 @@ class CursorOutputFrame(ttk.Frame):
         self.selectCmd = selectCmd
         self.cursorList = []
         self.foldTree = FoldSectionTree()
-        self.defaultHide = True
 
-    _MAX_DEEP = 5
+    _MAX_DEEP = 8
     _MAX_ITER_OUT = 10
     _DATA_INDENT = '      '
 
@@ -614,6 +642,11 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.tag_remove('attr_name_marked', '1.0', 'end')
         curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
         curLine = curIdx.split('.')[0]
+
+        curSec = self.foldTree.find_section(int(curLine))
+        if curSec:
+            self.foldTree.set_marker(curSec)
+
         attr = self.cursorText.tag_nextrange('attr_name', curLine+'.0')
         self.cursorText.tag_add('attr_name_marked', attr[0], attr[1])
         curLine = int(curLine)
@@ -667,6 +700,8 @@ class CursorOutputFrame(ttk.Frame):
 
     def on_section_click(self, event):
         curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
+        curLine = int(curIdx.split('.')[0])
+        curSec = self.foldTree.find_section(curLine)
 
         next_section = None
         curLev = 0
@@ -686,16 +721,19 @@ class CursorOutputFrame(ttk.Frame):
             cur_header = self.cursorText.tag_prevrange('section_header_'+str(curLev), next_section[0])
             next_hidden = self.cursorText.tag_nextrange('section_hidden_'+str(curLev), curIdx)
             self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
-            if next_hidden and (next_hidden == next_section):
+            newShow = next_hidden and (next_hidden == next_section)
+            if newShow:
                 self.cursorText.tag_remove('section_hidden_'+str(curLev), next_section[0], next_section[1])
                 self.cursorText.insert(cur_header[0]+' +1c', '-')
             else:
                 self.cursorText.tag_add('section_hidden_'+str(curLev), next_section[0], next_section[1])
                 self.cursorText.insert(cur_header[0]+' +1c', '+')
+            if curSec:
+                curSec.set_show(newShow)
             self.cursorText.config(state='disabled')
 
     def expand_all(self):
-        self.defaultHide = True
+        self.foldTree.set_all_show(True)
         self.cursorText.config(state='normal')
         for n in range(CursorOutputFrame._MAX_DEEP):
             secs = self.cursorText.tag_ranges('section_'+str(n))
@@ -707,7 +745,7 @@ class CursorOutputFrame(ttk.Frame):
         self.cursorText.config(state='disabled')
 
     def collapse_all(self):
-        self.defaultHide = True
+        self.foldTree.set_all_show(False)
         self.cursorText.config(state='normal')
         for n in range(CursorOutputFrame._MAX_DEEP):
             secs = self.cursorText.tag_ranges('section_'+str(n))
@@ -717,68 +755,6 @@ class CursorOutputFrame(ttk.Frame):
                 self.cursorText.tag_add('section_hidden_'+str(n), start, end)
                 self.cursorText.insert(cur_header[0]+' +1c', '+')
         self.cursorText.config(state='disabled')
-
-    def get_fold_tree(self):
-        curMarker = self.cursorText.tag_nextrange('attr_name_marked', '1.0')
-
-        foldTree = FoldSectionTree()
-        foldRoot = foldTree.get_root()
-        sections = []
-        hiddenSections = []
-        pos = []
-        hiddenPos = []
-        foldSections = [] # one per level
-        for n in range(CursorOutputFrame._MAX_DEEP):
-            secs = self.cursorText.tag_ranges('section_'+str(n))
-            sections.append(list(zip(secs[0::2], secs[1::2])))
-            secs = self.cursorText.tag_ranges('section_hidden_'+str(n))
-            hiddenSections.append(list(zip(secs[0::2], secs[1::2])))
-            pos.append(0)
-            hiddenPos.append(0)
-            foldSections.append(None)
-
-        level = 0
-        while pos[0] < len(sections[0]):
-            if pos[level] < len(sections[level]):       # not the end of cur level
-                start = sections[level][pos[level]][0]
-                if level > 0:
-                    outerEnd = sections[level-1][pos[level-1]][1]
-                    if self.cursorText.compare(start, '>', outerEnd):   # cur ist outside parent?
-                        level -= 1                                      # go back to parent
-                        if level >= 0:
-                            pos[level] += 1                             # and there to the next section
-                        continue
-
-                end = sections[level][pos[level]][1]
-                show = True
-                if hiddenPos[level] < len(hiddenSections[level]):                # there are still hidden sections?
-                    hiddenStart = hiddenSections[level][hiddenPos[level]][0]
-                    show = not self.cursorText.compare(start, '==', hiddenStart) # cur is hidden?
-                foldSections[level] = FoldSection(show)
-                if curMarker:
-                    curAttr = self.cursorText.tag_prevrange('attr_name', start)
-                    if self.cursorText.compare(curMarker[0], '==', curAttr[0]):
-                        foldTree.set_marker(foldSections[level])
-                if level == 0:
-                    foldRoot.insert(foldSections[0])
-                else:
-                    foldSections[level-1].insert(foldSections[level])
-
-                if not show:              # hidden section found and match?
-                    hiddenPos[level] += 1 # marker to next hidden section
-                if (((level+1) < CursorOutputFrame._MAX_DEEP)          # not last level?
-                    and (pos[level+1] < len(sections[level+1]))):      # not all in next level precessed?
-                    innerStart = sections[level+1][pos[level+1]][0]
-                    if self.cursorText.compare(innerStart, '<=', end): # next level section is inner cur?
-                        level += 1                                     # go to next level
-                        continue   # do not count up pos[level-1] because we still need it
-                pos[level] += 1
-            else:                                       # cur level ends
-                level -= 1                              # go back to parent
-                if level >= 0:
-                    pos[level] += 1                     # and there to the next section
-
-        return foldTree
 
     def clear(self):
         self.cursorText.config(state='normal')
@@ -798,10 +774,10 @@ class CursorOutputFrame(ttk.Frame):
         else:
             self.cursorText.insert('end', str(cursor))
 
-    def _add_attr(self, objStack, attrName, foldNode, extraPrefix, index=-1):
+    def _add_attr(self, objStack, attrName, foldNode, index=-1):
         obj = objStack[-1]
         deep = len(objStack) - 1
-        prefix = '\t' * deep + extraPrefix
+        prefix = '\t' * deep
         isIterData = index >= 0
 
         # set default values
@@ -843,11 +819,14 @@ class CursorOutputFrame(ttk.Frame):
                     attrData = str(cnt) + ' children, see tree on the left'
                     attrDataTag = 'special'
 
+        curIdx = self.cursorText.index('end -1c')
+        curLine = int(curIdx.split('.')[0])
+        foldNode.set_line(curLine)
         self.cursorText.insert('end', prefix)
         self.cursorText.insert('end', '[-] ', 'section_header_'+str(deep))
 
         if not isIterData:
-            if foldNode and (self.foldTree.get_marker() == foldNode):
+            if self.foldTree.get_marker() == foldNode:
                 attTags = ('attr_name', 'attr_name_marked')
             else:
                 attTags = 'attr_name'
@@ -868,9 +847,9 @@ class CursorOutputFrame(ttk.Frame):
             if nums > 0:
                 for n in range(nums):
                     result = attrData(n)
-                    subFoldNode = None
+                    subFoldNode = foldNode.get_child(n)
                     objStack.append(result)
-                    self._add_attr(objStack, 'num='+str(n), subFoldNode, extraPrefix, n)
+                    self._add_attr(objStack, 'num='+str(n), subFoldNode, n)
                     objStack.pop()
             else:
                 self.cursorText.insert('end', '\n')
@@ -879,9 +858,9 @@ class CursorOutputFrame(ttk.Frame):
             cnt = 0
             for d in attrData:
                 if cnt < CursorOutputFrame._MAX_ITER_OUT:
-                    subFoldNode = None
+                    subFoldNode = foldNode.get_child(cnt)
                     objStack.append(d)
-                    self._add_attr(objStack, str(cnt), subFoldNode, extraPrefix, cnt)
+                    self._add_attr(objStack, str(cnt), subFoldNode, cnt)
                     objStack.pop()
                 else:
                     self.cursorText.insert('end',
@@ -891,18 +870,14 @@ class CursorOutputFrame(ttk.Frame):
                 cnt = cnt+1
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+']\n')
         else:
-            self._add_attr_data(objStack, foldNode, extraPrefix, attrData, attrDataTag, isIterData)
+            self._add_attr_data(objStack, foldNode, attrData, attrDataTag, isIterData)
 
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can be hidden
         endIdx = self.cursorText.index('end -1c')
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can't be hidden
 
         self.cursorText.tag_add('section_'+str(deep), startIdx, endIdx)
-        if foldNode:
-            hide = not foldNode.show
-        else:
-            hide = self.defaultHide
-        if hide:
+        if not foldNode.show:
             cur_header = self.cursorText.tag_prevrange('section_header_'+str(deep), 'end')
             self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
             self.cursorText.insert(cur_header[0]+' +1c', '+')
@@ -910,9 +885,9 @@ class CursorOutputFrame(ttk.Frame):
 
         return True # new section created
 
-    def _add_attr_data(self, objStack, foldNode, extraPrefix, attrData, attrDataTag, isIterData):
+    def _add_attr_data(self, objStack, foldNode, attrData, attrDataTag, isIterData):
         deep = len(objStack) - 1
-        prefix = '\t' * deep + extraPrefix
+        prefix = '\t' * deep
 
         if isinstance(attrData, clang.cindex.Cursor):
             self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
@@ -927,7 +902,7 @@ class CursorOutputFrame(ttk.Frame):
             if not is_obj_in_stack(attrData, cmpStack): #attrData not in objStack:
                 if (deep+1) < CursorOutputFrame._MAX_DEEP:
                     objStack.append(attrData)
-                    self._add_obj(objStack, foldNode, extraPrefix)
+                    self._add_obj(objStack, foldNode)
                     objStack.pop()
                 else:
                     self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
@@ -950,25 +925,22 @@ class CursorOutputFrame(ttk.Frame):
 
         return
 
-    def _add_obj(self, objStack, foldNode, extraPrefix=''):
+    def _add_obj(self, objStack, foldNode):
         if objStack and (len(objStack) > 0):
             obj = objStack[-1]
             attrs = dir(obj)
             attIdx = 0
-            subFoldNode = None
             for attrName in attrs:
                 # ignore all starts with '_'
                 if attrName[0] == '_':
                     continue
-                if foldNode and foldNode.members:
-                    subFoldNode = foldNode.members[attIdx]
-                res = self._add_attr(objStack, attrName, subFoldNode, extraPrefix)
+                subFoldNode = foldNode.get_child(attIdx)
+                res = self._add_attr(objStack, attrName, subFoldNode)
                 if res:
                     attIdx += 1
 
     def set_cursor(self, c):
-        curFoldTree = self.get_fold_tree()
-        self.foldTree.apply(curFoldTree);
+        self.foldTree.clear_lines()
 
         if not isinstance(c, clang.cindex.Cursor):
             self.clear()
