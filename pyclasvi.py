@@ -525,12 +525,13 @@ class FoldSectionTree:
 
 # Node in FoldSectionTree
 class FoldSection:
-    def __init__(self, show):
+    def __init__(self, show, deep=-1):
         self.startLine = 0
         self.show = show
         self.members = None
         self.parent = None
         self.childNr = -1
+        self.deep = deep
 
     show_default = False
 
@@ -551,7 +552,7 @@ class FoldSection:
             self.members = []
 
         while (num+1) > len(self.members):
-            newFS = FoldSection(FoldSection.show_default)
+            newFS = FoldSection(FoldSection.show_default, self.deep+1)
             newFS.parent = self
             newFS.childNr = num
             self.members.append(newFS)
@@ -649,36 +650,6 @@ class CursorOutputFrame(ttk.Frame):
 
         attr = self.cursorText.tag_nextrange('attr_name', curLine+'.0')
         self.cursorText.tag_add('attr_name_marked', attr[0], attr[1])
-        curLine = int(curLine)
-
-        sections = []
-        pos = []
-        relPos = []
-        for n in range(CursorOutputFrame._MAX_DEEP):
-            secsHead = self.cursorText.tag_ranges('section_header_'+str(n))
-            secs = self.cursorText.tag_ranges('section_'+str(n))
-            level = []
-            for start, end in zip(secsHead[0::2], secs[1::2]):
-                startLine = int(self.cursorText.index(start).split('.')[0])
-                endLine = int(self.cursorText.index(end).split('.')[0])
-                level.append([startLine, endLine])
-            sections.append(level)
-            pos.append(0)
-            relPos.append(0)
-
-        level = 0
-        while True:
-            secStart = sections[level][pos[level]][0]
-            secEnd = sections[level][pos[level]][1]
-            if curLine == secStart:                             # exact match
-                break
-            elif (curLine > secStart) and (curLine < secEnd):   # match but deeper level
-                level += 1
-                while sections[level][pos[level]][0] < secStart:
-                    pos[level] += 1
-            else:
-                pos[level] += 1
-                relPos[level] += 1
 
     def goto_marker(self):
         curMarker = self.cursorText.tag_nextrange('attr_name_marked', '1.0')
@@ -702,19 +673,11 @@ class CursorOutputFrame(ttk.Frame):
         curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
         curLine = int(curIdx.split('.')[0])
         curSec = self.foldTree.find_section(curLine)
+        if not curSec:
+            return
 
-        next_section = None
-        curLev = 0
-        for n in range(CursorOutputFrame._MAX_DEEP):
-            new_next_section = self.cursorText.tag_nextrange('section_'+str(n), curIdx)
-            if next_section:
-                if new_next_section:
-                    if self.cursorText.compare(new_next_section[0], '<', next_section[0]):
-                        next_section = new_next_section
-                        curLev = n
-            elif new_next_section:
-                next_section = new_next_section
-                curLev = n
+        curLev = curSec.deep
+        next_section = self.cursorText.tag_nextrange('section_'+str(curLev), curIdx)
 
         if next_section:
             self.cursorText.config(state='normal')
@@ -728,8 +691,7 @@ class CursorOutputFrame(ttk.Frame):
             else:
                 self.cursorText.tag_add('section_hidden_'+str(curLev), next_section[0], next_section[1])
                 self.cursorText.insert(cur_header[0]+' +1c', '+')
-            if curSec:
-                curSec.set_show(newShow)
+            curSec.set_show(newShow)
             self.cursorText.config(state='disabled')
 
     def expand_all(self):
