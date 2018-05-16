@@ -509,7 +509,9 @@ class FoldSectionTree:
         if sectionList:
             lastSec = None
             for sec in sectionList:
-                if sec.startLine == startLine:
+                if sec.startLine == 0:
+                    break
+                elif sec.startLine == startLine:
                     return sec
                 elif sec.startLine < startLine:
                     lastSec = sec
@@ -578,7 +580,7 @@ class CursorOutputFrame(ttk.Frame):
         self.foldTree = FoldSectionTree()
 
     _MAX_DEEP = 8
-    _MAX_ITER_OUT = 10
+    _MAX_ITER_OUT = 25
     _DATA_INDENT = '      '
 
     # ignore member with this types
@@ -856,7 +858,8 @@ class CursorOutputFrame(ttk.Frame):
             self._add_cursor(attrData)
             self.cursorText.insert('end', '\n')
         elif (isinstance(attrData, clang.cindex.Type) 
-              or isinstance(attrData, clang.cindex.SourceRange)):
+              or isinstance(attrData, clang.cindex.SourceRange)
+              or isinstance(attrData, clang.cindex.Token)):
             if isIterData:
                 cmpStack = objStack[:-1]
             else:
