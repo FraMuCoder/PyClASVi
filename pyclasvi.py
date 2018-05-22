@@ -17,8 +17,6 @@
 # Error frame
 #   Filter for severity level
 #   Colored output depends on severity
-# Output frame
-#   Output Tokens
 
 import sys
 
@@ -989,6 +987,109 @@ class FileOutputFrame(ttk.Frame):
         self.fileText.config(state='disabled')
 
 
+class CursorFileOutputFrame(ttk.Frame):
+    def __init__(self, master=None):
+        ttk.Frame.__init__(self, master)
+        self.grid(sticky='nswe')
+        self.outState = tk.IntVar(value=0)
+        self.create_widgets()
+        self.cursor = None
+        self.tokens = []
+        self.tokenIdx = 0
+    
+    def create_widgets(self):
+        self.rowconfigure(1, weight=1)
+        self.columnconfigure(0, weight=1)
+        
+        toolbar = ttk.Frame(self)
+        toolbar.grid(row=0, column=0, sticky='wne')
+        toolbar.columnconfigure(5, weight=1)
+        
+        self.cursorBtn = tk.Radiobutton(toolbar, text='Cursor',
+                variable=self.outState, value=0, command=self.change_out)
+        self.cursorBtn.grid(row=0, column=0)
+        
+        self.tokensBtn = tk.Radiobutton(toolbar, text='Tokens',
+                variable=self.outState, value=1, command=self.change_out)
+        self.tokensBtn.grid(row=0, column=1)
+        
+        self.tokensPrevBtn = tk.Button(toolbar, text='<', relief='flat',
+                                            command=self.show_prev_token)
+        self.tokensPrevBtn.grid(row=0, column=2)
+        self.tokensLabel = tk.Label(toolbar, text='-/-', width=9)
+        self.tokensLabel.grid(row=0, column=3)
+        self.tokensNextBtn = tk.Button(toolbar, text='>', relief='flat',
+                                           command=self.show_next_token)
+        self.tokensNextBtn.grid(row=0, column=4)
+        
+        self.tokenKind = tk.Label(toolbar, text='')
+        self.tokenKind.grid(row=0, column=5, sticky='we')
+        
+        self.fileOutputFrame = FileOutputFrame(self)
+
+    def clear(self):
+        self.fileOutputFrame.clear()
+        self.outState.set(0)
+        self.cursor = None
+        self.tokens = []
+        self.tokenIdx = 0
+        self.tokensLabel.config(text='-/-')
+        self.tokenKind.config(text='')
+        self.cursorBtn.config(state='disabled')
+        self.tokensBtn.config(state='disabled')
+        self.tokensPrevBtn.config(state='disabled')
+        self.tokensLabel.config(state='disabled')
+        self.tokensNextBtn.config(state='disabled')
+
+    def set_cursor(self, cursor):
+        self.clear()
+        if isinstance(cursor, clang.cindex.Cursor):
+            self.cursor = cursor
+            self.tokens = []
+            for token in cursor.get_tokens():
+                self.tokens.append(token)
+            self.tokenIdx = 0
+            self.show_cursor()
+            self.show_label()
+            self.cursorBtn.config(state='normal')
+            self.tokensBtn.config(state='normal')
+            self.tokensPrevBtn.config(state='normal')
+            self.tokensLabel.config(state='normal')
+            self.tokensNextBtn.config(state='normal')
+
+    
+    def change_out(self):
+        if self.outState.get() == 0:
+            self.show_cursor()
+        else:
+            self.show_token()
+
+    def show_prev_token(self):
+        self.tokenIdx-=1
+        if self.tokenIdx < 0:
+            self.tokenIdx = len(self.tokens)-1
+        self.show_token()
+    
+    def show_next_token(self):
+        self.tokenIdx+=1
+        if self.tokenIdx >= len(self.tokens):
+            self.tokenIdx = 0
+        self.show_token()
+    
+    def show_cursor(self):
+        self.fileOutputFrame.set_location(self.cursor.extent, self.cursor.location)
+    
+    def show_label(self):
+        self.tokensLabel.config(text='{0}/{1}'.format(self.tokenIdx+1, len(self.tokens)))
+        self.tokenKind.config(text=str(self.tokens[self.tokenIdx].kind))
+
+    def show_token(self):
+        self.outState.set(1)
+        self.show_label()
+        token = self.tokens[self.tokenIdx]
+        self.fileOutputFrame.set_location(token.extent, token.location)
+
+
 # separat dialog window for search
 class SearchDialog(tk.Toplevel):
     
@@ -1160,7 +1261,7 @@ class OutputFrame(ttk.Frame):
                                                    selectCmd=self.astOutputFrame.set_current_cursor)
         pw2.add(self.cursorOutputFrame, stretch="always")
         
-        self.fileOutputFrame = FileOutputFrame(pw2)
+        self.fileOutputFrame = CursorFileOutputFrame(pw2)
         pw2.add(self.fileOutputFrame, stretch="always")
         
         pw1.add(pw2, stretch="always")
@@ -1176,7 +1277,7 @@ class OutputFrame(ttk.Frame):
     
     def set_active_cursor(self, cursor):
         self.cursorOutputFrame.set_cursor(cursor)
-        self.fileOutputFrame.set_location(cursor.extent, cursor.location)
+        self.fileOutputFrame.set_cursor(cursor)
     
     def clear_history(self):
         self.history = []
