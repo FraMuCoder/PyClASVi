@@ -12,8 +12,6 @@
 #   Better code documentation
 #   Check coding style
 #   Add documentation "How to access Clang AST"
-# Input frame
-#   Add buttons for input language and language version
 # Error frame
 #   Filter for severity level
 #   Colored output depends on severity
@@ -120,6 +118,43 @@ class InputFrame(ttk.Frame):
         self.grid(sticky='nswe')
         self.parseCmd = parseCmd
         self.filename = tk.StringVar(value="")
+        self.xOptions = [
+            'no -x',
+            '-xc',
+            '-xc++'
+        ]
+        self.xValue = tk.StringVar(value=self.xOptions[0])
+        self.stdOptions = [
+            'no -std',
+            '-std=c89',
+            '-std=c90',
+            '-std=iso9899:1990',
+            '-std=iso9899:199409',
+            '-std=gnu89',
+            '-std=gnu90',
+            '-std=c99',
+            '-std=iso9899:1999',
+            '-std=gnu99',
+            '-std=c11',
+            '-std=iso9899:2011',
+            '-std=gnu11',
+            '-std=c17',
+            '-std=iso9899:2017',
+            '-std=gnu17',
+            '-std=c++98',
+            '-std=c++03',
+            '-std=gnu++98',
+            '-std=gnu++03',
+            '-std=c++11',
+            '-std=gnu++11',
+            '-std=c++14',
+            '-std=gnu++14',
+            '-std=c++17',
+            '-std=gnu++17',
+            '-std=c++2a',
+            '-std=gnu++2a'
+        ]
+        self.stdValue = tk.StringVar(value=self.stdOptions[0])
         self.create_widgets()
 
     _filetypes = [
@@ -130,7 +165,7 @@ class InputFrame(ttk.Frame):
     def create_widgets(self):
         self.rowconfigure(4, weight=1)
         self.columnconfigure(0, weight=1)
-        
+
         ttk.Label(self, text='Input file:').grid(row=0, sticky='w')
         fileFrame = ttk.Frame(self)
         fileFrame.columnconfigure(0, weight=1)
@@ -139,7 +174,7 @@ class InputFrame(ttk.Frame):
         filenameEntry.grid(row=0, column=0, sticky='we')
         button = ttk.Button(fileFrame, text='...', command=self.on_select_file)
         button.grid(row=0, column=1)
-        
+
         ttk.Label(self, text='Arguments:').grid(row=2, sticky='w')
         buttonFrame = ttk.Frame(self)
         buttonFrame.grid(row=3, column=0, columnspan=2, sticky='we')
@@ -147,6 +182,17 @@ class InputFrame(ttk.Frame):
         button.grid()
         button = ttk.Button(buttonFrame, text='+ Define', command=self.on_define)
         button.grid(row=0, column=1)
+
+        xCBox = ttk.Combobox(buttonFrame, textvariable=self.xValue, 
+                values=self.xOptions)
+        xCBox.bind('<<ComboboxSelected>>', self.on_select_x)
+        xCBox.grid(row=0, column=2)
+
+        stdCBox = ttk.Combobox(buttonFrame, textvariable=self.stdValue, 
+                values=self.stdOptions)
+        stdCBox.bind('<<ComboboxSelected>>', self.on_select_std)
+        stdCBox.grid(row=0, column=3)
+
         self.argsText = tk.Text(self, wrap="none")
         self.argsText.grid(row=4, sticky='nswe')
         make_scrollable(self, self.argsText, widgetRow=4, widgetColumn=0)
@@ -157,13 +203,13 @@ class InputFrame(ttk.Frame):
 
         button = ttk.Button(buttonFrame, text='Load', command=self.on_file_load)
         button.grid(row=0, column=0)
-        
+
         button = ttk.Button(buttonFrame, text='Save', command=self.on_file_save)
         button.grid(row=0, column=1)
-        
+
         button = ttk.Button(buttonFrame, text='Parse', command=self.parseCmd)
         button.grid(row=0, column=2, sticky='we')
-    
+
     def load_filename(self, filename):
         f = open(filename, 'r')
         if f:
@@ -173,11 +219,11 @@ class InputFrame(ttk.Frame):
             if len(lines) > 0:
                 self.set_filename(lines[0])
             self.set_args(lines[1:])
-    
+
     def on_file_load(self):
         fn = tkFileDialog.askopenfilename(filetypes=self._filetypes)
         self.load_filename(fn)
-    
+
     def on_file_save(self):
         f = tkFileDialog.asksaveasfile(defaultextension=".txt", filetypes=self._filetypes)
         if f:
@@ -185,19 +231,31 @@ class InputFrame(ttk.Frame):
             for arg in self.get_args():
                 f.write(arg + '\n')
             f.close()
-    
+
     def on_select_file(self):
         fn = tkFileDialog.askopenfilename()
         if fn:
             self.set_filename(fn)
-    
+
     def on_include(self):
         dir = tkFileDialog.askdirectory()
         if dir:
             self.add_arg("-I"+dir)
-    
+
     def on_define(self):
         self.add_arg("-D<name>=<value>")
+
+    def on_select_x(self, e):
+        arg = self.xValue.get()
+        if arg == self.xOptions[0]:
+            arg = None
+        self.set_arg('-x', arg)
+
+    def on_select_std(self, e):
+        arg = self.stdValue.get()
+        if arg == self.stdOptions[0]:
+            arg = None
+        self.set_arg('-std', arg)
 
     def set_parse_cmd(self, parseCmd):
         self.parseCmd = parseCmd
@@ -208,11 +266,27 @@ class InputFrame(ttk.Frame):
     def get_filename(self):
         return self.filename.get()
     
+    def set_arg(self, name, total):
+        args = self.get_args()
+        i = 0
+        for arg in args:
+            if arg[:len(name)] == name:
+                break;
+            i += 1
+
+        newArgs = args[:i]
+        if total:
+            newArgs.append(total)
+        if i < len(args):
+            newArgs.extend(args[i+1:])
+
+        self.set_args(newArgs)
+
     def set_args(self, args):
         self.argsText.delete('1.0', 'end')
         for arg in args:
             self.add_arg(arg)
-    
+
     def add_arg(self, arg):
         txt = self.argsText.get('1.0', 'end')
         if len(txt) > 1: # looks like there is always a trailing newline
@@ -220,7 +294,7 @@ class InputFrame(ttk.Frame):
         else:
             prefix = ""
         self.argsText.insert('end', prefix + arg)
-    
+
     def get_args(self):
         args = []
         
@@ -229,7 +303,7 @@ class InputFrame(ttk.Frame):
         for arg in argStrList:
             if len(arg) > 0:
                 args.append(arg)
-        
+
         return args
 
 
