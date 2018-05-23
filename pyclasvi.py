@@ -1045,18 +1045,17 @@ class CursorFileOutputFrame(ttk.Frame):
         self.clear()
         if isinstance(cursor, clang.cindex.Cursor):
             self.cursor = cursor
-            self.tokens = []
             for token in cursor.get_tokens():
                 self.tokens.append(token)
             self.tokenIdx = 0
             self.show_cursor()
-            self.show_label()
             self.cursorBtn.config(state='normal')
-            self.tokensBtn.config(state='normal')
-            self.tokensPrevBtn.config(state='normal')
-            self.tokensLabel.config(state='normal')
-            self.tokensNextBtn.config(state='normal')
-
+            if len(self.tokens) > 0:
+                self.show_label()
+                self.tokensBtn.config(state='normal')
+                self.tokensPrevBtn.config(state='normal')
+                self.tokensLabel.config(state='normal')
+                self.tokensNextBtn.config(state='normal')
     
     def change_out(self):
         if self.outState.get() == 0:
