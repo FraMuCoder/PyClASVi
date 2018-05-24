@@ -222,7 +222,8 @@ class InputFrame(ttk.Frame):
 
     def on_file_load(self):
         fn = tkFileDialog.askopenfilename(filetypes=InputFrame._filetypes)
-        self.load_filename(fn)
+        if fn:
+            self.load_filename(fn)
 
     def on_file_save(self):
         f = tkFileDialog.asksaveasfile(defaultextension=".txt", filetypes=InputFrame._filetypes)
