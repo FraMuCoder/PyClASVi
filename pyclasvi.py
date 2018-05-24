@@ -118,48 +118,48 @@ class InputFrame(ttk.Frame):
         self.grid(sticky='nswe')
         self.parseCmd = parseCmd
         self.filename = tk.StringVar(value="")
-        self.xOptions = [
-            'no -x',
-            '-xc',
-            '-xc++'
-        ]
-        self.xValue = tk.StringVar(value=self.xOptions[0])
-        self.stdOptions = [
-            'no -std',
-            '-std=c89',
-            '-std=c90',
-            '-std=iso9899:1990',
-            '-std=iso9899:199409',
-            '-std=gnu89',
-            '-std=gnu90',
-            '-std=c99',
-            '-std=iso9899:1999',
-            '-std=gnu99',
-            '-std=c11',
-            '-std=iso9899:2011',
-            '-std=gnu11',
-            '-std=c17',
-            '-std=iso9899:2017',
-            '-std=gnu17',
-            '-std=c++98',
-            '-std=c++03',
-            '-std=gnu++98',
-            '-std=gnu++03',
-            '-std=c++11',
-            '-std=gnu++11',
-            '-std=c++14',
-            '-std=gnu++14',
-            '-std=c++17',
-            '-std=gnu++17',
-            '-std=c++2a',
-            '-std=gnu++2a'
-        ]
-        self.stdValue = tk.StringVar(value=self.stdOptions[0])
+        self.xValue = tk.StringVar(value=InputFrame._xOptions[0])
+        self.stdValue = tk.StringVar(value=InputFrame._stdOptions[0])
         self.create_widgets()
 
     _filetypes = [
         ("Text files", "*.txt", "TEXT"),
         ("All files", "*"),
+        ]
+    _xOptions = [
+        'no -x',
+        '-xc',
+        '-xc++'
+        ]
+    _stdOptions = [
+        'no -std',
+        '-std=c89',
+        '-std=c90',
+        '-std=iso9899:1990',
+        '-std=iso9899:199409',
+        '-std=gnu89',
+        '-std=gnu90',
+        '-std=c99',
+        '-std=iso9899:1999',
+        '-std=gnu99',
+        '-std=c11',
+        '-std=iso9899:2011',
+        '-std=gnu11',
+        '-std=c17',
+        '-std=iso9899:2017',
+        '-std=gnu17',
+        '-std=c++98',
+        '-std=c++03',
+        '-std=gnu++98',
+        '-std=gnu++03',
+        '-std=c++11',
+        '-std=gnu++11',
+        '-std=c++14',
+        '-std=gnu++14',
+        '-std=c++17',
+        '-std=gnu++17',
+        '-std=c++2a',
+        '-std=gnu++2a'
         ]
 
     def create_widgets(self):
@@ -184,12 +184,12 @@ class InputFrame(ttk.Frame):
         button.grid(row=0, column=1)
 
         xCBox = ttk.Combobox(buttonFrame, textvariable=self.xValue, 
-                values=self.xOptions)
+                values=InputFrame._xOptions)
         xCBox.bind('<<ComboboxSelected>>', self.on_select_x)
         xCBox.grid(row=0, column=2)
 
         stdCBox = ttk.Combobox(buttonFrame, textvariable=self.stdValue, 
-                values=self.stdOptions)
+                values=InputFrame._stdOptions)
         stdCBox.bind('<<ComboboxSelected>>', self.on_select_std)
         stdCBox.grid(row=0, column=3)
 
@@ -221,11 +221,11 @@ class InputFrame(ttk.Frame):
             self.set_args(lines[1:])
 
     def on_file_load(self):
-        fn = tkFileDialog.askopenfilename(filetypes=self._filetypes)
+        fn = tkFileDialog.askopenfilename(filetypes=InputFrame._filetypes)
         self.load_filename(fn)
 
     def on_file_save(self):
-        f = tkFileDialog.asksaveasfile(defaultextension=".txt", filetypes=self._filetypes)
+        f = tkFileDialog.asksaveasfile(defaultextension=".txt", filetypes=InputFrame._filetypes)
         if f:
             f.write(self.get_filename() + '\n')
             for arg in self.get_args():
@@ -247,13 +247,13 @@ class InputFrame(ttk.Frame):
 
     def on_select_x(self, e):
         arg = self.xValue.get()
-        if arg == self.xOptions[0]:
+        if arg == InputFrame._xOptions[0]:
             arg = None
         self.set_arg('-x', arg)
 
     def on_select_std(self, e):
         arg = self.stdValue.get()
-        if arg == self.stdOptions[0]:
+        if arg == InputFrame._stdOptions[0]:
             arg = None
         self.set_arg('-std', arg)
 
