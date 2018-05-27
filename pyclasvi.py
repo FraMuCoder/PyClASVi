@@ -12,8 +12,6 @@
 #   Better code documentation
 #   Check coding style
 #   Add documentation "How to access Clang AST"
-# Error frame
-#   Filter for severity level
 
 import sys
 
@@ -312,8 +310,28 @@ class ErrorFrame(ttk.Frame):
     def __init__(self, master=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
+        self.filterValue=tk.StringVar(value=ErrorFrame._diagStrTab[0])
         self.create_widgets()
-        self.errorMap = {}
+        self.errors = []
+
+    # _diagLevelTab and _diagStrTab must have the same size and order
+    _diagLevelTab = [
+        clang.cindex.Diagnostic.Ignored,
+        clang.cindex.Diagnostic.Note,
+        clang.cindex.Diagnostic.Warning,
+        clang.cindex.Diagnostic.Error,
+        clang.cindex.Diagnostic.Fatal
+        ]
+    _diagStrTab = [
+        str(clang.cindex.Diagnostic.Ignored) + ' Ignored',
+        str(clang.cindex.Diagnostic.Note)    + ' Note',
+        str(clang.cindex.Diagnostic.Warning) + ' Warning',
+        str(clang.cindex.Diagnostic.Error)   + ' Error',
+        str(clang.cindex.Diagnostic.Fatal)   + ' Fatal'
+        ]
+    _diagTagTab = {clang.cindex.Diagnostic.Warning:("warning",),
+                   clang.cindex.Diagnostic.Error:("error",),
+                   clang.cindex.Diagnostic.Fatal:("fatal",)}
 
     def create_widgets(self):
         self.rowconfigure(0, weight=1)
@@ -325,8 +343,19 @@ class ErrorFrame(ttk.Frame):
         pw.grid(row=0, column=0, sticky='nswe')
 
         frame = ttk.Frame(pw)
-        frame.rowconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
         frame.columnconfigure(0, weight=1)
+
+        buttonFrame = ttk.Frame(frame)
+        buttonFrame.grid(row=0, column=0, columnspan=2, sticky='we')
+
+        label = tk.Label(buttonFrame, text='Filter:')
+        label.grid(row=0, column=0)
+        filterCBox = ttk.Combobox(buttonFrame, textvariable=self.filterValue, 
+            values=ErrorFrame._diagStrTab)
+        filterCBox.bind('<<ComboboxSelected>>', self.filter)
+        filterCBox.grid(row=0, column=1)
+
         self.errorTable = ttk.Treeview(frame, columns=('category', 'severity', 'spelling', 'location'))
 
         self.errorTable.tag_configure('warning', background='light yellow')
@@ -334,8 +363,8 @@ class ErrorFrame(ttk.Frame):
         self.errorTable.tag_configure('fatal', background='dark red', foreground='white')
 
         self.errorTable.bind('<<TreeviewSelect>>', self.on_selection)
-        self.errorTable.grid(row=0, column=0, sticky='nswe')
-        make_scrollable(frame, self.errorTable)
+        self.errorTable.grid(row=1, column=0, sticky='nswe')
+        make_scrollable(frame, self.errorTable, 1)
         pw.add(frame, stretch="always")
 
         self.errorTable.heading('#0', text='#')
@@ -354,54 +383,57 @@ class ErrorFrame(ttk.Frame):
 
     def on_selection(self, event):
         curItem = self.errorTable.focus()
-        err = self.errorMap[curItem]
+        err = self.errors[int(curItem)]
         range1 = None
         for r in err.ranges:
             range1 = r
             break
         self.fileOutputFrame.set_location(range1, err.location)
 
-    def clear_errors(self):
-        self.errorMap = {}
+    def filter(self, e=None):
         for i in self.errorTable.get_children():
             self.errorTable.delete(i)
-
-    def set_errors(self, errors):
-        self.clear_errors()
+        i = ErrorFrame._diagStrTab.index(self.filterValue.get())
+        diagLevel = ErrorFrame._diagLevelTab[i]
         cnt = 0
-        for err in errors:
+        for err in self.errors:
             cnt = cnt + 1
-            serverityTab = {clang.cindex.Diagnostic.Ignored:"Ignored", 
-                            clang.cindex.Diagnostic.Note:"Note",
-                            clang.cindex.Diagnostic.Warning:"Warning",
-                            clang.cindex.Diagnostic.Error:"Error",
-                            clang.cindex.Diagnostic.Fatal:"Fatal"}
-            tagTab = {clang.cindex.Diagnostic.Warning:("warning",),
-                            clang.cindex.Diagnostic.Error:("error",),
-                            clang.cindex.Diagnostic.Fatal:("fatal",)}
-
-            if err.severity in serverityTab:
-                serverity = str(err.severity) + ' ' + serverityTab[err.severity]
+            if err.severity < diagLevel:
+                continue
+            if err.severity in ErrorFrame._diagLevelTab:
+                i = ErrorFrame._diagLevelTab.index(err.severity)
+                serverity = ErrorFrame._diagStrTab[i]
             else:
                 serverity = str(err.severity)
-            if err.severity in tagTab:
-                tagsVal=tagTab[err.severity]
+            if err.severity in ErrorFrame._diagTagTab:
+                tagsVal=ErrorFrame._diagTagTab[err.severity]
             else:
                 tagsVal=()
             if err.location.file:
                 location = err.location.file.name + ' ' + str(err.location.line) + ':' + str(err.location.offset)
             else:
                 location = None
-            iid = self.errorTable.insert('', 'end', text=str(cnt), values=[
+            self.errorTable.insert('', 'end', text=str(cnt), values=[
                 str(err.category_number) + ' ' + toStr(err.category_name),
                 serverity,
                 err.spelling,
                 location
                 ],
-                tags=tagsVal)
-            self.errorMap[iid] = err
+                tags=tagsVal,
+                iid=str(cnt-1))
 
-        return cnt
+    def clear_errors(self):
+        self.errors = []
+        for i in self.errorTable.get_children():
+            self.errorTable.delete(i)
+
+    def set_errors(self, errors):
+        self.clear_errors()
+        for err in errors:
+            self.errors.append(err)
+        self.filter()
+
+        return len(self.errors)
 
 
 # Output the AST in a Treeview like folders in a file browser
