@@ -1092,7 +1092,7 @@ class FileOutputFrame(ttk.Frame):
         
         if isinstance(srcRange, clang.cindex.SourceRange):
             srcFrom =  '{0}.{1}'.format(srcRange.start.line, srcRange.start.column-1)
-            srcTo =  '{0}.{1}'.format(srcRange.end.line, srcRange.end.column)
+            srcTo =  '{0}.{1}'.format(srcRange.end.line, srcRange.end.column-1)
             self.fileText.tag_add('range', srcFrom, srcTo)
             self.fileText.see(srcFrom)
         
