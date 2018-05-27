@@ -14,7 +14,6 @@
 #   Add documentation "How to access Clang AST"
 # Error frame
 #   Filter for severity level
-#   Colored output depends on severity
 
 import sys
 
@@ -319,21 +318,26 @@ class ErrorFrame(ttk.Frame):
     def create_widgets(self):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
-        
+
         charSize = tkFont.nametofont('TkHeadingFont').measure('#')
-        
+
         pw = tk.PanedWindow(self, orient='vertical')
         pw.grid(row=0, column=0, sticky='nswe')
-        
+
         frame = ttk.Frame(pw)
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
         self.errorTable = ttk.Treeview(frame, columns=('category', 'severity', 'spelling', 'location'))
+
+        self.errorTable.tag_configure('warning', background='light yellow')
+        self.errorTable.tag_configure('error', background='indian red')
+        self.errorTable.tag_configure('fatal', background='dark red', foreground='white')
+
         self.errorTable.bind('<<TreeviewSelect>>', self.on_selection)
         self.errorTable.grid(row=0, column=0, sticky='nswe')
         make_scrollable(frame, self.errorTable)
         pw.add(frame, stretch="always")
-        
+
         self.errorTable.heading('#0', text='#')
         self.errorTable.column('#0', width=4*charSize, anchor='e', stretch=False)
         self.errorTable.heading('category', text='Category')
@@ -344,7 +348,7 @@ class ErrorFrame(ttk.Frame):
         self.errorTable.column('spelling', width=40*charSize, stretch=False)
         self.errorTable.heading('location', text='Location')
         self.errorTable.column('location', width=40*charSize, stretch=False)
-        
+
         self.fileOutputFrame = FileOutputFrame(pw)
         pw.add(self.fileOutputFrame, stretch="always")
 
@@ -356,12 +360,12 @@ class ErrorFrame(ttk.Frame):
             range1 = r
             break
         self.fileOutputFrame.set_location(range1, err.location)
-    
+
     def clear_errors(self):
         self.errorMap = {}
         for i in self.errorTable.get_children():
             self.errorTable.delete(i)
-    
+
     def set_errors(self, errors):
         self.clear_errors()
         cnt = 0
@@ -372,11 +376,18 @@ class ErrorFrame(ttk.Frame):
                             clang.cindex.Diagnostic.Warning:"Warning",
                             clang.cindex.Diagnostic.Error:"Error",
                             clang.cindex.Diagnostic.Fatal:"Fatal"}
-            
+            tagTab = {clang.cindex.Diagnostic.Warning:("warning",),
+                            clang.cindex.Diagnostic.Error:("error",),
+                            clang.cindex.Diagnostic.Fatal:("fatal",)}
+
             if err.severity in serverityTab:
                 serverity = str(err.severity) + ' ' + serverityTab[err.severity]
             else:
                 serverity = str(err.severity)
+            if err.severity in tagTab:
+                tagsVal=tagTab[err.severity]
+            else:
+                tagsVal=()
             if err.location.file:
                 location = err.location.file.name + ' ' + str(err.location.line) + ':' + str(err.location.offset)
             else:
@@ -386,9 +397,10 @@ class ErrorFrame(ttk.Frame):
                 serverity,
                 err.spelling,
                 location
-                ])
+                ],
+                tags=tagsVal)
             self.errorMap[iid] = err
-        
+
         return cnt
 
 
