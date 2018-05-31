@@ -7,8 +7,6 @@
 # TODO
 #
 # General
-#   Test unter Windows
-#   Test/fix Clang versions > 3.8
 #   Better code documentation
 #   Check coding style
 #   Add documentation "How to access Clang AST"
