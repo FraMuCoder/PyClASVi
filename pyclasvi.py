@@ -354,7 +354,8 @@ class ErrorFrame(ttk.Frame):
         filterCBox.bind('<<ComboboxSelected>>', self.filter)
         filterCBox.grid(row=0, column=1)
 
-        self.errorTable = ttk.Treeview(frame, columns=('category', 'severity', 'spelling', 'location'))
+        self.errorTable = ttk.Treeview(frame, columns=('category', 'severity', 'spelling', 'location',
+                                                       'option'))
 
         self.errorTable.tag_configure('warning', background='light yellow')
         self.errorTable.tag_configure('error', background='indian red')
@@ -372,9 +373,11 @@ class ErrorFrame(ttk.Frame):
         self.errorTable.heading('severity', text='Severity')
         self.errorTable.column('severity', width=8*charSize, stretch=False)
         self.errorTable.heading('spelling', text='Text')
-        self.errorTable.column('spelling', width=40*charSize, stretch=False)
+        self.errorTable.column('spelling', width=50*charSize, stretch=False)
         self.errorTable.heading('location', text='Location')
-        self.errorTable.column('location', width=40*charSize, stretch=False)
+        self.errorTable.column('location', width=50*charSize, stretch=False)
+        self.errorTable.heading('option', text='Option')
+        self.errorTable.column('option', width=20*charSize, stretch=False)
 
         self.fileOutputFrame = FileOutputFrame(pw)
         pw.add(self.fileOutputFrame, stretch="always")
@@ -415,13 +418,15 @@ class ErrorFrame(ttk.Frame):
                 str(err.category_number) + ' ' + toStr(err.category_name),
                 serverity,
                 err.spelling,
-                location
+                location,
+                err.option
                 ],
                 tags=tagsVal,
                 iid=str(cnt-1))
 
     def clear_errors(self):
         self.errors = []
+        self.fileOutputFrame.clear()
         for i in self.errorTable.get_children():
             self.errorTable.delete(i)
 
