@@ -1,0 +1,6 @@
+#include "test_classes.cpp"
+#include "test_code.cpp"
+#include "test_comments.cpp"
+#include "test_enums.hpp"
+#include "test_fields.hpp"
+#include "test_templates.hpp"

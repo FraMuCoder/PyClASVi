@@ -1,0 +1,3 @@
+examples/test_all.cpp
+-xc++
+-std=c++11
