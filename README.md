@@ -24,6 +24,8 @@ Depending on your operation system you need to install different things like:
 
 ### Linux
 
+![PyClASVi under Linux](doc/img/PyClASVi_Linux.png)
+
 This was tested with Ubuntu 14.04 and 16.04.
 
 First you need to install Clang, Clang Indexing Library Bindings for Python and tk for Python.
@@ -58,6 +60,8 @@ If all works fine there is no warning or error on the Error tab and the Output t
 Select one entry (Clang calls it Cursor) to find more information on the right.
 
 ### Windows
+
+![PyClASVi under Linux](doc/img/PyClASVi_Windows.png)
 
 First download and install Python (<http://www.python.org>). Do not use the embeddable zip file, it does not include Tcl/tk.
 
