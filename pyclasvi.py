@@ -424,14 +424,14 @@ class ErrorFrame(ttk.Frame):
                 tags=tagsVal,
                 iid=str(cnt-1))
 
-    def clear_errors(self):
+    def clear(self):
         self.errors = []
         self.fileOutputFrame.clear()
         for i in self.errorTable.get_children():
             self.errorTable.delete(i)
 
     def set_errors(self, errors):
-        self.clear_errors()
+        self.clear()
         for err in errors:
             self.errors.append(err)
         self.filter()
@@ -1580,6 +1580,8 @@ class Application(ttk.Frame):
         quitButton.grid(row=1, column=0, sticky='we')
     
     def on_parse(self):
+        self.errorFrame.clear()
+        self.outputFrame.clear()
         fileName = self.inputFrame.get_filename()
         args = self.inputFrame.get_args()
         tu = self.index.parse(fileName, args=args)
