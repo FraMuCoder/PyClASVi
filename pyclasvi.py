@@ -1118,35 +1118,35 @@ class CursorFileOutputFrame(ttk.Frame):
         self.cursor = None
         self.tokens = []
         self.tokenIdx = 0
-    
+
     def create_widgets(self):
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
-        
+
         toolbar = ttk.Frame(self)
         toolbar.grid(row=0, column=0, sticky='wne')
         toolbar.columnconfigure(5, weight=1)
-        
-        self.cursorBtn = tk.Radiobutton(toolbar, text='Cursor',
+
+        self.cursorBtn = ttk.Radiobutton(toolbar, text='Cursor', style='Toolbutton',
                 variable=self.outState, value=0, command=self.change_out)
         self.cursorBtn.grid(row=0, column=0)
-        
-        self.tokensBtn = tk.Radiobutton(toolbar, text='Tokens',
+
+        self.tokensBtn = ttk.Radiobutton(toolbar, text='Tokens', style='Toolbutton',
                 variable=self.outState, value=1, command=self.change_out)
         self.tokensBtn.grid(row=0, column=1)
-        
-        self.tokensPrevBtn = tk.Button(toolbar, text='<', relief='flat',
+
+        self.tokensPrevBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
                                             command=self.show_prev_token)
         self.tokensPrevBtn.grid(row=0, column=2)
-        self.tokensLabel = tk.Label(toolbar, text='-/-', width=9)
+        self.tokensLabel = ttk.Label(toolbar, text='-/-', width=-7, anchor='center')
         self.tokensLabel.grid(row=0, column=3)
-        self.tokensNextBtn = tk.Button(toolbar, text='>', relief='flat',
+        self.tokensNextBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
                                            command=self.show_next_token)
         self.tokensNextBtn.grid(row=0, column=4)
-        
-        self.tokenKind = tk.Label(toolbar, text='')
+
+        self.tokenKind = ttk.Label(toolbar, text='')
         self.tokenKind.grid(row=0, column=5, sticky='we')
-        
+
         self.fileOutputFrame = FileOutputFrame(self)
 
     def clear(self):
@@ -1334,13 +1334,14 @@ class OutputFrame(ttk.Frame):
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
 
+        # Toolbar start
         toolbar = ttk.Frame(self)
         toolbar.grid(row=0, column=0, sticky='we')
 
-        self.historyBackwardBtn = ttk.Button(toolbar, text='<', style='Toolbutton',
+        self.historyBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
                                             command=self.go_history_backward)
         self.historyBackwardBtn.grid(row=0, column=0)
-        self.historyForwardBtn = ttk.Button(toolbar, text='>', style='Toolbutton',
+        self.historyForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
                                            command=self.go_history_forward)
         self.historyForwardBtn.grid(row=0, column=1)
 
@@ -1350,12 +1351,12 @@ class OutputFrame(ttk.Frame):
         label = tk.Label(toolbar, text='Doubles:')
         label.grid(row=0, column=3)
 
-        self.doublesBackwardBtn = ttk.Button(toolbar, text='<', style='Toolbutton',
+        self.doublesBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
                                             command=self.go_doubles_backward)
         self.doublesBackwardBtn.grid(row=0, column=4)
-        self.doublesLabel = tk.Label(toolbar, text='-/-', width=-5)
+        self.doublesLabel = ttk.Label(toolbar, text='-/-', width=-3, anchor='center')
         self.doublesLabel.grid(row=0, column=5)
-        self.doublesForwardBtn = ttk.Button(toolbar, text='>', style='Toolbutton',
+        self.doublesForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
                                            command=self.go_doubles_forward)
         self.doublesForwardBtn.grid(row=0, column=6)
 
@@ -1365,12 +1366,12 @@ class OutputFrame(ttk.Frame):
         self.searchBtn = ttk.Button(toolbar, text='Search', style='Toolbutton',
                                    command=self.on_search)
         self.searchBtn.grid(row=0, column=8)
-        self.searchBackwardBtn = ttk.Button(toolbar, text='<', style='Toolbutton',
+        self.searchBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
                                            command=self.go_search_backward)
         self.searchBackwardBtn.grid(row=0, column=9)
-        self.serachLabel = tk.Label(toolbar, text='-/-', width=-5)
+        self.serachLabel = ttk.Label(toolbar, text='-/-', width=-7, anchor='center')
         self.serachLabel.grid(row=0, column=10)
-        self.searchForwardBtn = ttk.Button(toolbar, text='>', style='Toolbutton',
+        self.searchForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
                                           command=self.go_search_forward)
         self.searchForwardBtn.grid(row=0, column=11)
 
