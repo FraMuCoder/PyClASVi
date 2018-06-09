@@ -13,7 +13,6 @@ PyClASVi is distributed under the MIT License, see LICENSE file.
 # TODO
 #
 # General
-#   Check coding style
 #   Add documentation "How to access Clang AST"
 
 import sys
@@ -60,6 +59,16 @@ def toStr(data):
         return str(data)
 
 
+# Just join strings.
+def join(*args):
+    return ''.join(args)
+
+
+# Join everything to a string
+def xjoin(*args):
+    return ''.join((str(a) for a in args))
+
+
 # check if m is an instance methode
 def is_instance_methode(m):
     return inspect.ismethod(m)
@@ -104,11 +113,11 @@ class HashableObj:
 # If there are more than one widget inside the parent use widgetRow and widgetColumn
 # to specify witch widget should be scrollable.
 def make_scrollable(parent, widget, widgetRow=0, widgetColumn=0):
-        vsb = ttk.Scrollbar(parent, orient="vertical",command=widget.yview)
+        vsb = ttk.Scrollbar(parent, orient='vertical',command=widget.yview)
         widget.configure(yscrollcommand=vsb.set)
         vsb.grid(row=widgetRow, column=widgetColumn+1, sticky='ns')
 
-        hsb = ttk.Scrollbar(parent, orient="horizontal",command=widget.xview)
+        hsb = ttk.Scrollbar(parent, orient='horizontal',command=widget.xview)
         widget.configure(xscrollcommand=hsb.set)
         hsb.grid(row=widgetRow+1, column=widgetColumn, sticky='we')
 
@@ -120,21 +129,21 @@ class InputFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.parseCmd = parseCmd
-        self.filename = tk.StringVar(value="")
-        self.xValue = tk.StringVar(value=InputFrame._xOptions[0])       # Option starting with "-x"
-        self.stdValue = tk.StringVar(value=InputFrame._stdOptions[0])   # Option starting with "-std"
-        self.create_widgets()
+        self.filename = tk.StringVar(value='')
+        self.xValue = tk.StringVar(value=InputFrame._X_OPTIONS[0])       # Option starting with "-x"
+        self.stdValue = tk.StringVar(value=InputFrame._STD_OPTIONS[0])   # Option starting with "-std"
+        self._create_widgets()
 
-    _filetypes = [
-        ("Text files", "*.txt", "TEXT"),
-        ("All files", "*"),
-        ]
-    _xOptions = [
+    _FILETYPES = (
+        ('Text files', '*.txt', 'TEXT'),
+        ('All files', '*'),
+        )
+    _X_OPTIONS = (
         'no -x',
         '-xc',
         '-xc++'
-        ]
-    _stdOptions = [
+        )
+    _STD_OPTIONS = (
         'no -std',
         '-std=c89',
         '-std=c90',
@@ -163,9 +172,9 @@ class InputFrame(ttk.Frame):
         '-std=gnu++17',
         '-std=c++2a',
         '-std=gnu++2a'
-        ]
+        )
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.rowconfigure(4, weight=1)
         self.columnconfigure(0, weight=1)
 
@@ -175,28 +184,28 @@ class InputFrame(ttk.Frame):
         fileFrame.grid(row=1, column=0, columnspan=2, sticky='we')
         filenameEntry = ttk.Entry(fileFrame, textvariable=self.filename)
         filenameEntry.grid(row=0, column=0, sticky='we')
-        button = ttk.Button(fileFrame, text='...', command=self.on_select_file)
+        button = ttk.Button(fileFrame, text='...', command=self._on_select_file)
         button.grid(row=0, column=1)
 
         ttk.Label(self, text='Arguments:').grid(row=2, sticky='w')
         buttonFrame = ttk.Frame(self)
         buttonFrame.grid(row=3, column=0, columnspan=2, sticky='we')
-        button = ttk.Button(buttonFrame, text='+ Include', command=self.on_include)
+        button = ttk.Button(buttonFrame, text='+ Include', command=self._on_include)
         button.grid()
-        button = ttk.Button(buttonFrame, text='+ Define', command=self.on_define)
+        button = ttk.Button(buttonFrame, text='+ Define', command=self._on_define)
         button.grid(row=0, column=1)
 
         xCBox = ttk.Combobox(buttonFrame, textvariable=self.xValue, 
-                values=InputFrame._xOptions)
-        xCBox.bind('<<ComboboxSelected>>', self.on_select_x)
+                values=InputFrame._X_OPTIONS)
+        xCBox.bind('<<ComboboxSelected>>', self._on_select_x)
         xCBox.grid(row=0, column=2)
 
         stdCBox = ttk.Combobox(buttonFrame, textvariable=self.stdValue, 
-                values=InputFrame._stdOptions)
-        stdCBox.bind('<<ComboboxSelected>>', self.on_select_std)
+                values=InputFrame._STD_OPTIONS)
+        stdCBox.bind('<<ComboboxSelected>>', self._on_select_std)
         stdCBox.grid(row=0, column=3)
 
-        self.argsText = tk.Text(self, wrap="none")
+        self.argsText = tk.Text(self, wrap='none')
         self.argsText.grid(row=4, sticky='nswe')
         make_scrollable(self, self.argsText, widgetRow=4, widgetColumn=0)
 
@@ -204,60 +213,58 @@ class InputFrame(ttk.Frame):
         buttonFrame.grid(row=6, column=0, columnspan=2, sticky='we')
         buttonFrame.columnconfigure(2, weight=1)
 
-        button = ttk.Button(buttonFrame, text='Load', command=self.on_file_load)
+        button = ttk.Button(buttonFrame, text='Load', command=self._on_file_load)
         button.grid(row=0, column=0)
 
-        button = ttk.Button(buttonFrame, text='Save', command=self.on_file_save)
+        button = ttk.Button(buttonFrame, text='Save', command=self._on_file_save)
         button.grid(row=0, column=1)
 
         button = ttk.Button(buttonFrame, text='Parse', command=self.parseCmd)
         button.grid(row=0, column=2, sticky='we')
 
     def load_filename(self, filename):
-        f = open(filename, 'r')
-        if f:
+        data = []
+        with open(filename, 'r') as f:
             data = f.read()
-            f.close()
-            lines = data.split("\n")
+        if data:
+            lines = data.split('\n')
             if len(lines) > 0:
                 self.set_filename(lines[0])
             self.set_args(lines[1:])
 
-    def on_file_load(self):
-        fn = tkFileDialog.askopenfilename(filetypes=InputFrame._filetypes)
+    def _on_file_load(self):
+        fn = tkFileDialog.askopenfilename(filetypes=InputFrame._FILETYPES)
         if fn:
             self.load_filename(fn)
 
-    def on_file_save(self):
-        f = tkFileDialog.asksaveasfile(defaultextension=".txt", filetypes=InputFrame._filetypes)
-        if f:
-            f.write(self.get_filename() + '\n')
+    def _on_file_save(self):
+        with tkFileDialog.asksaveasfile(defaultextension='.txt', filetypes=InputFrame._FILETYPES) as f:
+            f.write(join(self.get_filename(), '\n'))
             for arg in self.get_args():
-                f.write(arg + '\n')
-            f.close()
+                f.write(join(arg, '\n'))
 
-    def on_select_file(self):
+    def _on_select_file(self):
         fn = tkFileDialog.askopenfilename()
         if fn:
             self.set_filename(fn)
 
-    def on_include(self):
+    def _on_include(self):
         dir = tkFileDialog.askdirectory()
         if dir:
-            self.add_arg("-I"+dir)
+            self.add_arg(join('-I', dir))
 
-    def on_define(self):
-        self.add_arg("-D<name>=<value>")
+    def _on_define(self):
+        self.add_arg('-D<name>=<value>')
 
-    def on_select_x(self, e):
+    def _on_select_x(self, e):
         arg = self.xValue.get()
-        if arg == InputFrame._xOptions[0]:
+        if arg == InputFrame._X_OPTIONS[0]:
             arg = None
         self.set_arg('-x', arg)
 
-    def on_select_std(self, e):
+    def _on_select_std(self, e):
         arg = self.stdValue.get()
-        if arg == InputFrame._stdOptions[0]:
+        if arg == InputFrame._STD_OPTIONS[0]:
             arg = None
         self.set_arg('-std', arg)
 
@@ -271,7 +278,8 @@ class InputFrame(ttk.Frame):
         return self.filename.get()
 
     # Set a single arg starting with name.
-    # Replace the first arg if there is still one starting with name.
+    # Replace or erase the first arg if there is still one starting with name.
+    # total is full argument string starting with name for replacement or None or empty string for erase.
     def set_arg(self, name, total):
         args = self.get_args()
         i = 0
@@ -297,16 +305,16 @@ class InputFrame(ttk.Frame):
     def add_arg(self, arg):
         txt = self.argsText.get('1.0', 'end')
         if len(txt) > 1: # looks like there is always a trailing newline
-            prefix = "\n"
+            prefix = '\n'
         else:
-            prefix = ""
-        self.argsText.insert('end', prefix + arg)
+            prefix = ''
+        self.argsText.insert('end', join(prefix, arg))
 
     def get_args(self):
         args = []
 
         argStr = self.argsText.get('1.0', 'end')
-        argStrList = argStr.split("\n")
+        argStrList = argStr.split('\n')
         for arg in argStrList:
             if len(arg) > 0:
                 args.append(arg)
@@ -320,30 +328,30 @@ class ErrorFrame(ttk.Frame):
     def __init__(self, master=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
-        self.filterValue=tk.StringVar(value=ErrorFrame._diagStrTab[0]) # filter by severity
-        self.create_widgets()
+        self.filterValue=tk.StringVar(value=ErrorFrame._DIAG_STR_TAB[0]) # filter by severity
+        self._create_widgets()
         self.errors = []                # list of diagnostics (also warnings not only errors)
 
-    # _diagLevelTab and _diagStrTab must have the same size and order
-    _diagLevelTab = [
+    # _DIAG_LEVEL_TAB and _DIAG_STR_TAB must have the same size and order
+    _DIAG_LEVEL_TAB = (
         clang.cindex.Diagnostic.Ignored,
         clang.cindex.Diagnostic.Note,
         clang.cindex.Diagnostic.Warning,
         clang.cindex.Diagnostic.Error,
         clang.cindex.Diagnostic.Fatal
-        ]
-    _diagStrTab = [
-        str(clang.cindex.Diagnostic.Ignored) + ' Ignored',
-        str(clang.cindex.Diagnostic.Note)    + ' Note',
-        str(clang.cindex.Diagnostic.Warning) + ' Warning',
-        str(clang.cindex.Diagnostic.Error)   + ' Error',
-        str(clang.cindex.Diagnostic.Fatal)   + ' Fatal'
-        ]
-    _diagTagTab = {clang.cindex.Diagnostic.Warning:("warning",),
-                   clang.cindex.Diagnostic.Error:("error",),
-                   clang.cindex.Diagnostic.Fatal:("fatal",)}
+        )
+    _DIAG_STR_TAB = (
+        xjoin(clang.cindex.Diagnostic.Ignored, ' Ignored'),
+        xjoin(clang.cindex.Diagnostic.Note,    ' Note'),
+        xjoin(clang.cindex.Diagnostic.Warning, ' Warning'),
+        xjoin(clang.cindex.Diagnostic.Error,   ' Error'),
+        xjoin(clang.cindex.Diagnostic.Fatal,   ' Fatal')
+        )
+    _DIAG_TAG_TAB = {clang.cindex.Diagnostic.Warning:('warning',),
+                   clang.cindex.Diagnostic.Error:('error',),
+                   clang.cindex.Diagnostic.Fatal:('fatal',)}
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
 
@@ -362,8 +370,8 @@ class ErrorFrame(ttk.Frame):
         label = tk.Label(buttonFrame, text='Filter:')
         label.grid(row=0, column=0)
         filterCBox = ttk.Combobox(buttonFrame, textvariable=self.filterValue, 
-            values=ErrorFrame._diagStrTab)
-        filterCBox.bind('<<ComboboxSelected>>', self.filter)
+            values=ErrorFrame._DIAG_STR_TAB)
+        filterCBox.bind('<<ComboboxSelected>>', self._filter)
         filterCBox.grid(row=0, column=1)
 
         self.errorTable = ttk.Treeview(frame, columns=('category', 'severity', 'spelling', 'location',
@@ -373,10 +381,10 @@ class ErrorFrame(ttk.Frame):
         self.errorTable.tag_configure('error', background='indian red')
         self.errorTable.tag_configure('fatal', background='dark red', foreground='white')
 
-        self.errorTable.bind('<<TreeviewSelect>>', self.on_selection)
+        self.errorTable.bind('<<TreeviewSelect>>', self._on_selection)
         self.errorTable.grid(row=1, column=0, sticky='nswe')
         make_scrollable(frame, self.errorTable, 1)
-        pw.add(frame, stretch="always")
+        pw.add(frame, stretch='always')
 
         self.errorTable.heading('#0', text='#')
         self.errorTable.column('#0', width=4*charSize, anchor='e', stretch=False)
@@ -392,10 +400,10 @@ class ErrorFrame(ttk.Frame):
         self.errorTable.column('option', width=20*charSize, stretch=False)
 
         self.fileOutputFrame = FileOutputFrame(pw)
-        pw.add(self.fileOutputFrame, stretch="always")
+        pw.add(self.fileOutputFrame, stretch='always')
 
     # Show selected diagnostic in source file
-    def on_selection(self, event):
+    def _on_selection(self, event):
         curItem = self.errorTable.focus()
         err = self.errors[int(curItem)]
         range1 = None
@@ -405,31 +413,33 @@ class ErrorFrame(ttk.Frame):
         self.fileOutputFrame.set_location(range1, err.location)
 
     # Filter by selected severity
-    def filter(self, e=None):
+    def _filter(self, e=None):
         for i in self.errorTable.get_children():
             self.errorTable.delete(i)
-        i = ErrorFrame._diagStrTab.index(self.filterValue.get())
-        diagLevel = ErrorFrame._diagLevelTab[i]
+        i = ErrorFrame._DIAG_STR_TAB.index(self.filterValue.get())
+        diagLevel = ErrorFrame._DIAG_LEVEL_TAB[i]
         cnt = 0
         for err in self.errors:
             cnt = cnt + 1
             if err.severity < diagLevel:
                 continue
-            if err.severity in ErrorFrame._diagLevelTab:
-                i = ErrorFrame._diagLevelTab.index(err.severity)
-                serverity = ErrorFrame._diagStrTab[i]
+            if err.severity in ErrorFrame._DIAG_LEVEL_TAB:
+                i = ErrorFrame._DIAG_LEVEL_TAB.index(err.severity)
+                serverity = ErrorFrame._DIAG_STR_TAB[i]
             else:
                 serverity = str(err.severity)
-            if err.severity in ErrorFrame._diagTagTab:
-                tagsVal=ErrorFrame._diagTagTab[err.severity]
+            if err.severity in ErrorFrame._DIAG_TAG_TAB:
+                tagsVal=ErrorFrame._DIAG_TAG_TAB[err.severity]
             else:
                 tagsVal=()
             if err.location.file:
-                location = err.location.file.name + ' ' + str(err.location.line) + ':' + str(err.location.offset)
+                location = '{} {}:{}'.format(err.location.file.name,
+                                             err.location.line,
+                                             err.location.offset)
             else:
                 location = None
             self.errorTable.insert('', 'end', text=str(cnt), values=[
-                str(err.category_number) + ' ' + toStr(err.category_name),
+                join(str(err.category_number), ' ',  toStr(err.category_name)),
                 serverity,
                 err.spelling,
                 location,
@@ -448,7 +458,7 @@ class ErrorFrame(ttk.Frame):
         self.clear()
         for err in errors:
             self.errors.append(err)
-        self.filter()
+        self._filter()
 
         return len(self.errors)
 
@@ -460,14 +470,14 @@ class ASTOutputFrame(ttk.Frame):
     def __init__(self, master=None, selectCmd=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
-        self.create_widgets()
+        self._create_widgets()
         self.translationunit = None
         self.mapIIDtoCursor = {}        # Treeview use IIDs (stings) to identify a note,
         self.mapCursorToIID = {}        # so we need to map between IID and Cursor in both direction.
                                         # One Cursor may have a list of IIDs if several times found in AST.
         self.selectCmd = selectCmd      # Callback after selecting a Cursor
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
 
@@ -475,15 +485,15 @@ class ASTOutputFrame(ttk.Frame):
 
         self.astView = ttk.Treeview(self, selectmode='browse')
         self.astView.tag_configure('default', font='TkFixedFont')
-        self.astView.bind('<<TreeviewSelect>>', self.on_selection)
+        self.astView.bind('<<TreeviewSelect>>', self._on_selection)
 
         make_scrollable(self, self.astView)
 
         self.astView.heading('#0', text='Cursor')
         self.astView.grid(row=0, column=0, sticky='nswe')
 
-    def on_selection(self, event):
-        if self.selectCmd:
+    def _on_selection(self, event):
+        if self.selectCmd is not None:
             self.selectCmd()
 
     def set_select_cmd(self, cmd):
@@ -495,7 +505,7 @@ class ASTOutputFrame(ttk.Frame):
     # Return a single IID or a list of IIDs.
     def get_current_iids(self):
         cursor = self.get_current_cursor()
-        if cursor:
+        if cursor is not None:
             return self.mapCursorToIID[HashableObj(cursor)]
         else:
             return None
@@ -592,7 +602,7 @@ class ASTOutputFrame(ttk.Frame):
             try:
                 reObj = re.compile(spelling, reFlags)
             except Exception as e:
-                tkMessageBox.showerror("Search RegEx", str(e))
+                tkMessageBox.showerror('Search RegEx', str(e))
                 return result
         elif caseInsensitive:
             spelling = spelling.lower()
@@ -677,7 +687,7 @@ class FoldSectionTree:
                     lastSec = sec
                 else:
                     break
-            if lastSec:
+            if lastSec is not None:
                 return self._find_section(startLine, lastSec.members)
             else:
                 return None
@@ -716,7 +726,7 @@ class FoldSection:
     # Remark, children (nodes) represent Cursor attributes in same order.
     # num may convert to attribute name to support different kind of objects in CursorOutputFrame.
     def get_child(self, num):
-        if not self.members:
+        if self.members is None:
             self.members = []
 
         while (num+1) > len(self.members):
@@ -746,7 +756,7 @@ class CursorOutputFrame(ttk.Frame):
     def __init__(self, master=None, selectCmd=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
-        self.create_widgets()
+        self._create_widgets()
         self.cursor = None
         self.selectCmd = selectCmd              # will be called on clicking a cursor link
         self.cursorList = []                    # list of cursor in same order as links are shown in text
@@ -757,55 +767,55 @@ class CursorOutputFrame(ttk.Frame):
     _DATA_INDENT = '      '     # indentation for sub sections / attributes
 
     # ignore member with this types
-    _ignore_types = ('function',)
+    _IGNORE_TYPES = ('function',)
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
 
-        defFont = tkFont.Font(font="TkFixedFont")
+        defFont = tkFont.Font(font='TkFixedFont')
         defFontProp = defFont.actual()
-        self.cursorText = tk.Text(self, wrap="none")
+        self.cursorText = tk.Text(self, wrap='none')
         self.cursorText.grid(row=0, sticky='nswe')
-        self.cursorText.bind('<Button-3>', self.on_right_click)
+        self.cursorText.bind('<Button-3>', self._on_right_click)
 
         make_scrollable(self, self.cursorText)
 
         self.cursorText.tag_configure('attr_name', font=(defFontProp['family'], defFontProp['size'], 'bold'))
-        self.cursorText.tag_bind('attr_name', '<ButtonPress-1>', self.on_attr_click)
+        self.cursorText.tag_bind('attr_name', '<ButtonPress-1>', self._on_attr_click)
         self.cursorText.tag_configure('attr_name_marked', background='lightblue')
         self.cursorText.tag_configure('attr_type', foreground='green')
         self.cursorText.tag_configure('attr_err', foreground='red')
         self.cursorText.tag_configure('link', foreground='blue')
-        self.cursorText.tag_bind('link', '<ButtonPress-1>', self.on_cursor_click)
-        self.cursorText.tag_bind('link', '<Enter>', self.on_link_enter)
-        self.cursorText.tag_bind('link', '<Leave>', self.on_link_leave)
+        self.cursorText.tag_bind('link', '<ButtonPress-1>', self._on_cursor_click)
+        self.cursorText.tag_bind('link', '<Enter>', self._on_link_enter)
+        self.cursorText.tag_bind('link', '<Leave>', self._on_link_leave)
         self.cursorText.tag_configure('special', font=(defFontProp['family'], defFontProp['size'], 'italic'))
 
         for n in range(CursorOutputFrame._MAX_DEEP):
-            self.cursorText.tag_configure('section_header_' + str(n), foreground='gray')
-            self.cursorText.tag_bind('section_header_' + str(n), "<ButtonPress-1>", self.on_section_click)
-            self.cursorText.tag_bind('section_header_' + str(n), '<Enter>', self.on_section_enter)
-            self.cursorText.tag_bind('section_header_' + str(n), '<Leave>', self.on_section_leave)
-            self.cursorText.tag_configure('section_hidden_' + str(n), elide=True)
-            self.cursorText.tag_configure('section_' + str(n))
+            self.cursorText.tag_configure(xjoin('section_header_', n), foreground='gray')
+            self.cursorText.tag_bind(xjoin('section_header_', n), '<ButtonPress-1>', self._on_section_click)
+            self.cursorText.tag_bind(xjoin('section_header_', n), '<Enter>', self._on_section_enter)
+            self.cursorText.tag_bind(xjoin('section_header_', n), '<Leave>', self._on_section_leave)
+            self.cursorText.tag_configure(xjoin('section_hidden_', n), elide=True)
+            self.cursorText.tag_configure(xjoin('section_', n))
 
         self.cursorText.config(state='disabled')
 
     # Change mouse cursor over links.
-    def on_link_enter(self, event):
+    def _on_link_enter(self, event):
         self.cursorText.configure(cursor='hand1')
 
     # Reset mouse cursor after leaving links.
-    def on_link_leave(self, event):
+    def _on_link_leave(self, event):
         self.cursorText.configure(cursor='xterm')
 
     # Cursor link was clicked, run callback.
-    def on_cursor_click(self, event):
-        if self.selectCmd == None:
+    def _on_cursor_click(self, event):
+        if self.selectCmd is None:
             return
 
-        curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
+        curIdx = self.cursorText.index('@{0},{1}'.format(event.x, event.y))
         linkIdxs = list(self.cursorText.tag_ranges('link'))
         listIdx = 0
 
@@ -818,16 +828,16 @@ class CursorOutputFrame(ttk.Frame):
             listIdx += 1
 
     # Mark clicked attribute name and store it in foldTree.
-    def on_attr_click(self, event):
+    def _on_attr_click(self, event):
         self.cursorText.tag_remove('attr_name_marked', '1.0', 'end')
-        curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
+        curIdx = self.cursorText.index('@{0},{1}'.format(event.x, event.y))
         curLine = curIdx.split('.')[0]
 
         curSec = self.foldTree.find_section(int(curLine))
-        if curSec:
+        if curSec is not None:
             self.foldTree.set_marker(curSec)
 
-        attr = self.cursorText.tag_nextrange('attr_name', curLine+'.0')
+        attr = self.cursorText.tag_nextrange('attr_name', join(curLine, '.0'))
         self.cursorText.tag_add('attr_name_marked', attr[0], attr[1])
 
     # Scroll text widget so marked attribute is shown.
@@ -838,44 +848,44 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.see(curMarker[0])   # ...after attribute name are shown
 
     # Show context menu.
-    def on_right_click(self, event):
+    def _on_right_click(self, event):
         menu = tk.Menu(None, tearoff=0)
         menu.add_command(label='Expand all', command=self.expand_all)
         menu.add_command(label='Collapse all', command=self.collapse_all)
         menu.tk_popup(event.x_root, event.y_root)
 
     # Change mouse cursor over clickable [+]/[-] of a node of a foldable section.
-    def on_section_enter(self, event):
+    def _on_section_enter(self, event):
         self.cursorText.configure(cursor='arrow')
 
     # Reset mouse cursor.
-    def on_section_leave(self, event):
+    def _on_section_leave(self, event):
         self.cursorText.configure(cursor='xterm')
 
     # Where was a click on [+]/[-], so we need to fold or unfold a section.
-    def on_section_click(self, event):
-        curIdx = self.cursorText.index("@{0},{1}".format(event.x, event.y))
+    def _on_section_click(self, event):
+        curIdx = self.cursorText.index('@{0},{1}'.format(event.x, event.y))
         curLine = int(curIdx.split('.')[0])
         curSec = self.foldTree.find_section(curLine) # find clicked section in foldTree
-        if not curSec:
+        if curSec is None:
             return # should never happen
 
         # find the matching section tag
         curLev = curSec.deep
-        next_section = self.cursorText.tag_nextrange('section_'+str(curLev), curIdx)
+        next_section = self.cursorText.tag_nextrange(xjoin('section_', curLev), curIdx)
 
         if next_section: # should always be true
             self.cursorText.config(state='normal')
-            cur_header = self.cursorText.tag_prevrange('section_header_'+str(curLev), next_section[0])
-            next_hidden = self.cursorText.tag_nextrange('section_hidden_'+str(curLev), curIdx)
-            self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
+            cur_header = self.cursorText.tag_prevrange(xjoin('section_header_', curLev), next_section[0])
+            next_hidden = self.cursorText.tag_nextrange(xjoin('section_hidden_', curLev), curIdx)
+            self.cursorText.delete(join(cur_header[0], ' +1c'), join(cur_header[0], ' +2c'))
             newShow = next_hidden and (next_hidden == next_section)
             if newShow:
-                self.cursorText.tag_remove('section_hidden_'+str(curLev), next_section[0], next_section[1])
-                self.cursorText.insert(cur_header[0]+' +1c', '-')
+                self.cursorText.tag_remove(xjoin('section_hidden_', curLev), next_section[0], next_section[1])
+                self.cursorText.insert(join(cur_header[0], ' +1c'), '-')
             else:
-                self.cursorText.tag_add('section_hidden_'+str(curLev), next_section[0], next_section[1])
-                self.cursorText.insert(cur_header[0]+' +1c', '+')
+                self.cursorText.tag_add(xjoin('section_hidden_', curLev), next_section[0], next_section[1])
+                self.cursorText.insert(join(cur_header[0], ' +1c'), '+')
             curSec.set_show(newShow)
             self.cursorText.config(state='disabled')
 
@@ -884,12 +894,12 @@ class CursorOutputFrame(ttk.Frame):
         self.foldTree.set_all_show(True)
         self.cursorText.config(state='normal')
         for n in range(CursorOutputFrame._MAX_DEEP):
-            secs = self.cursorText.tag_ranges('section_'+str(n))
+            secs = self.cursorText.tag_ranges(xjoin('section_', n))
             for start, end in zip(secs[0::2], secs[1::2]):
-                cur_header = self.cursorText.tag_prevrange('section_header_'+str(n), start)
-                self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
-                self.cursorText.tag_remove('section_hidden_'+str(n), start, end)
-                self.cursorText.insert(cur_header[0]+' +1c', '-')
+                cur_header = self.cursorText.tag_prevrange(xjoin('section_header_', n), start)
+                self.cursorText.delete(join(cur_header[0], ' +1c'), join(cur_header[0], ' +2c'))
+                self.cursorText.tag_remove(xjoin('section_hidden_', n), start, end)
+                self.cursorText.insert(join(cur_header[0], ' +1c'), '-')
         self.cursorText.config(state='disabled')
 
     # Collapse all sections (via context menu).
@@ -897,12 +907,12 @@ class CursorOutputFrame(ttk.Frame):
         self.foldTree.set_all_show(False)
         self.cursorText.config(state='normal')
         for n in range(CursorOutputFrame._MAX_DEEP):
-            secs = self.cursorText.tag_ranges('section_'+str(n))
+            secs = self.cursorText.tag_ranges(xjoin('section_', n))
             for start, end in zip(secs[0::2], secs[1::2]):
-                cur_header = self.cursorText.tag_prevrange('section_header_'+str(n), start)
-                self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
-                self.cursorText.tag_add('section_hidden_'+str(n), start, end)
-                self.cursorText.insert(cur_header[0]+' +1c', '+')
+                cur_header = self.cursorText.tag_prevrange(xjoin('section_header_', n), start)
+                self.cursorText.delete(join(cur_header[0], ' +1c'), join(cur_header[0], ' +2c'))
+                self.cursorText.tag_add(xjoin('section_hidden_', n), start, end)
+                self.cursorText.insert(join(cur_header[0], ' +1c'), '+')
         self.cursorText.config(state='disabled')
 
     def clear(self):
@@ -947,10 +957,10 @@ class CursorOutputFrame(ttk.Frame):
             try:
                 attrData = getattr(obj, attrName)
                 attrType = attrData.__class__.__name__
-                if attrType in CursorOutputFrame._ignore_types:
+                if attrType in CursorOutputFrame._IGNORE_TYPES:
                     return False # no new section created
             except BaseException as e:
-                attrType = e.__class__.__name__ + ' => do not use this'
+                attrType = join(e.__class__.__name__, ' => do not use this')
                 attrTypeTag = 'attr_err'
         else:
             attrData = obj
@@ -962,19 +972,19 @@ class CursorOutputFrame(ttk.Frame):
             attrData = 'Do not uses this if kind is TypeKind.INVALID!'
             attrDataTag = 'attr_err'
         elif is_instance_methode(attrData):
-            attrType = attrType + ' ' + get_methode_prototype(attrData)
+            attrType = join(attrType,  ' ', get_methode_prototype(attrData))
             if is_simple_instance_methode(attrData):
                 try:
                     attrData = attrData()
-                    attrType = attrType + ' => ' + attrData.__class__.__name__
+                    attrType = join(attrType, ' => ', attrData.__class__.__name__)
                 except BaseException as e:
-                    attrData = e.__class__.__name__ + ' => do not use this'
+                    attrData = join(e.__class__.__name__, ' => do not use this')
                     attrDataTag = 'attr_err'
                 if attrName == 'get_children':
                     cnt = 0
                     for c in attrData:
                         cnt = cnt+1
-                    attrData = str(cnt) + ' children, see tree on the left'
+                    attrData = xjoin(cnt, ' children, see tree on the left')
                     attrDataTag = 'special'
 
         # start output, first line is always shown if parent section is also shown
@@ -982,7 +992,7 @@ class CursorOutputFrame(ttk.Frame):
         curLine = int(curIdx.split('.')[0])
         foldNode.set_line(curLine)
         self.cursorText.insert('end', prefix)
-        self.cursorText.insert('end', '[-] ', 'section_header_'+str(deep))
+        self.cursorText.insert('end', '[-] ', xjoin('section_header_', deep))
 
         if not isIterData:
             if self.foldTree.get_marker() == foldNode:
@@ -1010,12 +1020,12 @@ class CursorOutputFrame(ttk.Frame):
                     result = attrData(n)
                     subFoldNode = foldNode.get_child(n)
                     objStack.append(result)
-                    self._add_attr(objStack, 'num='+str(n), subFoldNode, n)
+                    self._add_attr(objStack, xjoin('num=', n), subFoldNode, n)
                     objStack.pop()
             else:
                 self.cursorText.insert('end', '\n')
-        elif hasattr(attrData, "__iter__") and not isinstance(attrData, (str, bytes)):
-            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+'[\n')
+        elif hasattr(attrData, '__iter__') and not isinstance(attrData, (str, bytes)):
+            self.cursorText.insert('end', join(prefix, CursorOutputFrame._DATA_INDENT, '[\n'))
             cnt = 0
             for d in attrData:
                 if cnt < CursorOutputFrame._MAX_ITER_OUT:
@@ -1025,11 +1035,14 @@ class CursorOutputFrame(ttk.Frame):
                     objStack.pop()
                 else:
                     self.cursorText.insert('end',
-                                           prefix+'   '+CursorOutputFrame._DATA_INDENT+'and some more...\n',
+                                           join(prefix,
+                                                '   ',
+                                                CursorOutputFrame._DATA_INDENT,
+                                                'and some more...\n'),
                                            'special')
                     break
                 cnt = cnt+1
-            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT+']\n')
+            self.cursorText.insert('end', join(prefix, CursorOutputFrame._DATA_INDENT, ']\n'))
         else:
             self._add_attr_data(objStack, foldNode, attrData, attrDataTag, isIterData)
 
@@ -1038,12 +1051,12 @@ class CursorOutputFrame(ttk.Frame):
         #self.cursorText.insert('end', '\n') # use this if you want an extra line witch can't be hidden
 
         # add tags for the section needed to hide a section or find the position for later hidding
-        self.cursorText.tag_add('section_'+str(deep), startIdx, endIdx)
+        self.cursorText.tag_add(xjoin('section_', deep), startIdx, endIdx)
         if not foldNode.show:
-            cur_header = self.cursorText.tag_prevrange('section_header_'+str(deep), 'end')
-            self.cursorText.delete(cur_header[0]+' +1c', cur_header[0]+' +2c')
-            self.cursorText.insert(cur_header[0]+' +1c', '+')
-            self.cursorText.tag_add('section_hidden_'+str(deep), startIdx, endIdx)
+            cur_header = self.cursorText.tag_prevrange(xjoin('section_header_', deep), 'end')
+            self.cursorText.delete(join(cur_header[0], ' +1c'), join(cur_header[0], ' +2c'))
+            self.cursorText.insert(join(cur_header[0], ' +1c'), '+')
+            self.cursorText.tag_add(xjoin('section_hidden_', deep), startIdx, endIdx)
 
         return True # new section created
 
@@ -1057,7 +1070,7 @@ class CursorOutputFrame(ttk.Frame):
         prefix = '\t' * deep
 
         if isinstance(attrData, clang.cindex.Cursor):
-            self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
+            self.cursorText.insert('end', join(prefix, CursorOutputFrame._DATA_INDENT))
             self._add_cursor(attrData)
             self.cursorText.insert('end', '\n')
         elif (isinstance(attrData, clang.cindex.Type) 
@@ -1073,21 +1086,21 @@ class CursorOutputFrame(ttk.Frame):
                     self._add_obj(objStack, foldNode)
                     objStack.pop()
                 else:
-                    self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
+                    self.cursorText.insert('end', join(prefix, CursorOutputFrame._DATA_INDENT))
                     self.cursorText.insert('end',
-                                          'To deep to show ' + toStr(attrData),
+                                          join('To deep to show ', toStr(attrData)),
                                           'special')
                     self.cursorText.insert('end', '\n')
             else:
-                self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
+                self.cursorText.insert('end', join(prefix, CursorOutputFrame._DATA_INDENT))
                 self.cursorText.insert('end',
-                                       toStr(attrData) + ' already shown!',
+                                       join(toStr(attrData), ' already shown!'),
                                        'special')
                 self.cursorText.insert('end', '\n')
         else:
             lines = toStr(attrData).split('\n')
             for line in lines:
-                self.cursorText.insert('end', prefix+CursorOutputFrame._DATA_INDENT)
+                self.cursorText.insert('end', join(prefix, CursorOutputFrame._DATA_INDENT))
                 self.cursorText.insert('end', line, attrDataTag)
                 self.cursorText.insert('end', '\n')
 
@@ -1135,14 +1148,14 @@ class FileOutputFrame(ttk.Frame):
     def __init__(self, master=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
-        self.create_widgets()
+        self._create_widgets()
         self.fileName = None
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
 
-        self.fileText = tk.Text(self, wrap="none")
+        self.fileText = tk.Text(self, wrap='none')
         self.fileText.grid(row=0, sticky='nswe')
         self.fileText.tag_configure('range', background='gray')
         self.fileText.tag_configure('location', background='yellow')
@@ -1173,11 +1186,10 @@ class FileOutputFrame(ttk.Frame):
 
         if newFileName and (self.fileName != newFileName):
             self.fileText.delete('1.0', 'end')
-            f = open(newFileName, 'r')
-            if f:
+            data = []
+            with open(newFileName, 'r') as f:
                 data = f.read()
-                f.close()
-                self.fileText.insert('end', data)
+            self.fileText.insert('end', data)
 
         self.fileName = newFileName
 
@@ -1205,12 +1217,12 @@ class CursorFileOutputFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self.outState = tk.IntVar(value=0)
-        self.create_widgets()
+        self._create_widgets()
         self.cursor = None
         self.tokens = []
         self.tokenIdx = 0
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
 
@@ -1264,7 +1276,7 @@ class CursorFileOutputFrame(ttk.Frame):
             self.show_cursor()
             self.cursorBtn.config(state='normal')
             if len(self.tokens) > 0:
-                self.show_label()
+                self._show_label()
                 self.tokensBtn.config(state='normal')
                 self.tokensPrevBtn.config(state='normal')
                 self.tokensLabel.config(state='normal')
@@ -1290,15 +1302,16 @@ class CursorFileOutputFrame(ttk.Frame):
         self.show_token()
 
     def show_cursor(self):
+        self.outState.set(0)
         self.fileOutputFrame.set_location(self.cursor.extent, self.cursor.location)
 
-    def show_label(self):
+    def _show_label(self):
         self.tokensLabel.config(text='{0}/{1}'.format(self.tokenIdx+1, len(self.tokens)))
         self.tokenKind.config(text=str(self.tokens[self.tokenIdx].kind))
 
     def show_token(self):
         self.outState.set(1)
-        self.show_label()
+        self._show_label()
         token = self.tokens[self.tokenIdx]
         self.fileOutputFrame.set_location(token.extent, token.location)
 
@@ -1319,34 +1332,34 @@ class SearchDialog(tk.Toplevel):
         self.kindOptions.sort()
         self.kindState = tk.IntVar(value=0)
         self.kindValue = tk.StringVar(value=self.kindOptions[0])
-        self.searchtext = tk.StringVar(value="")
+        self.searchtext = tk.StringVar(value='')
         self.caseInsensitive = tk.IntVar(value=0)
         self.useRegEx = tk.IntVar(value=0)
 
-        if SearchDialog._old_data:
+        if SearchDialog._old_data is not None:
             self.set_data(**SearchDialog._old_data)
 
         self.title('Search')
-        self.create_widgets()
-        self.on_check_kind()
+        self._create_widgets()
+        self._on_check_kind()
 
         self.grab_set()
 
-        self.bind("<Return>", self.on_ok)
-        self.bind("<Escape>", self.on_cancel)
+        self.bind('<Return>', self._on_ok)
+        self.bind('<Escape>', self._on_cancel)
 
-        self.protocol("WM_DELETE_WINDOW", self.on_cancel)
+        self.protocol('WM_DELETE_WINDOW', self._on_cancel)
 
         self.wait_window(self)
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.columnconfigure(0, weight=1)
 
         frame = ttk.Frame(self)
         frame.grid(row=0, column=0, sticky='nesw')
         frame.columnconfigure(1, weight=1)
 
-        cb=ttk.Checkbutton(frame, text="Kind:", variable=self.kindState, command=self.on_check_kind)
+        cb=ttk.Checkbutton(frame, text='Kind:', variable=self.kindState, command=self._on_check_kind)
         cb.grid(row=0, column=0)
         self.kindCBox = ttk.Combobox(frame, textvariable=self.kindValue, values=self.kindOptions)
         self.kindCBox.grid(row=0, column=1, sticky='we')
@@ -1356,18 +1369,18 @@ class SearchDialog(tk.Toplevel):
         searchEntry = ttk.Entry(frame, textvariable=self.searchtext, width=25)
         searchEntry.grid(row=1, column=1, sticky='we')
 
-        cb=ttk.Checkbutton(frame, text="Ignore case", variable=self.caseInsensitive)
+        cb=ttk.Checkbutton(frame, text='Ignore case', variable=self.caseInsensitive)
         cb.grid(row=2, column=1, sticky='w')
-        cb=ttk.Checkbutton(frame, text="Use RegEx", variable=self.useRegEx)
+        cb=ttk.Checkbutton(frame, text='Use RegEx', variable=self.useRegEx)
         cb.grid(row=3, column=1, sticky='w')
 
         frame = ttk.Frame(self)
         frame.grid(row=1, column=0, sticky='e')
 
-        btn = tk.Button(frame, text='OK', width=8, command=self.on_ok)
+        btn = tk.Button(frame, text='OK', width=8, command=self._on_ok)
         btn.grid(row=0, column=0, sticky='e')
 
-        btn = tk.Button(frame, text='Cancel', width=8, command=self.on_cancel)
+        btn = tk.Button(frame, text='Cancel', width=8, command=self._on_cancel)
         btn.grid(row=0, column=1, sticky='e')
 
     def get_data(self):
@@ -1386,18 +1399,18 @@ class SearchDialog(tk.Toplevel):
         self.caseInsensitive.set(kwargs['caseInsensitive'])
         self.useRegEx.set(kwargs['use_RexEx'])
 
-    def on_check_kind(self):
+    def _on_check_kind(self):
         if self.kindState.get():
             self.kindCBox.config(state='normal')
         else:
             self.kindCBox.config(state='disable')
 
-    def on_ok(self, event=None):
+    def _on_ok(self, event=None):
         self.result = True
         SearchDialog._old_data = self.get_data()
         self.destroy()
 
-    def on_cancel(self, event=None):
+    def _on_cancel(self, event=None):
         self.destroy()
 
 
@@ -1410,7 +1423,7 @@ class OutputFrame(ttk.Frame):
         self.grid(sticky='nswe')
         self.markerSetState = tk.IntVar(value=0) # after click [M#] Button 0: jump to marked cursor
                                                  #                         1: mark current cursor
-        self.create_widgets()
+        self._create_widgets()
 
         self.curIID = ''        # IID of current marked cursor in TreeView on the left
         self.curCursor = None
@@ -1419,14 +1432,14 @@ class OutputFrame(ttk.Frame):
         self.searchResult = []
         self.searchPos = -1     # you can also walk through searchResult
         self.marker = []        # marked cursor using the [M#] Buttons
-        for n in range(0, OutputFrame._marker_btn_cnt): # list must have fixed size to check if there is
+        for n in range(0, OutputFrame._MARKER_BTN_CNT): # list must have fixed size to check if there is
             self.marker.append(None)                    # a cursor at position x stored no not (None)
         self.clear()
 
-    _max_history = 25
-    _marker_btn_cnt = 5
+    _MAX_HISTORY = 25
+    _MARKER_BTN_CNT = 5
 
-    def create_widgets(self):
+    def _create_widgets(self):
         self.rowconfigure(1, weight=1)
         self.columnconfigure(0, weight=1)
 
@@ -1442,7 +1455,7 @@ class OutputFrame(ttk.Frame):
         self.historyForwardBtn.grid(row=0, column=1)
 
         sep = ttk.Separator(toolbar, orient='vertical')
-        sep.grid(row=0, column=2, sticky="ns", padx=5, pady=5)
+        sep.grid(row=0, column=2, sticky='ns', padx=5, pady=5)
 
         label = tk.Label(toolbar, text='Doubles:')
         label.grid(row=0, column=3)
@@ -1457,10 +1470,10 @@ class OutputFrame(ttk.Frame):
         self.doublesForwardBtn.grid(row=0, column=6)
 
         sep = ttk.Separator(toolbar, orient='vertical')
-        sep.grid(row=0, column=7, sticky="ns", padx=5, pady=5)
+        sep.grid(row=0, column=7, sticky='ns', padx=5, pady=5)
 
         self.searchBtn = ttk.Button(toolbar, text='Search', style='Toolbutton',
-                                   command=self.on_search)
+                                   command=self._on_search)
         self.searchBtn.grid(row=0, column=8)
         self.searchBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
                                            command=self.go_search_backward)
@@ -1472,17 +1485,17 @@ class OutputFrame(ttk.Frame):
         self.searchForwardBtn.grid(row=0, column=11)
 
         sep = ttk.Separator(toolbar, orient='vertical')
-        sep.grid(row=0, column=12, sticky="ns", padx=5, pady=5)
+        sep.grid(row=0, column=12, sticky='ns', padx=5, pady=5)
 
         self.markerSetBtn = ttk.Checkbutton(toolbar, text='MS', width=-4, style='Toolbutton',
                                             variable=self.markerSetState, onvalue=1, offvalue=0,
-                                            command=self.on_marker_set)
+                                            command=self._on_marker_set)
         self.markerSetBtn.grid(row=0, column=13)
 
         self.markerBtns = []
-        for n in range(0, OutputFrame._marker_btn_cnt):
-            btn = ttk.Button(toolbar, text='M'+str(n+1), width=-4, style='Toolbutton',
-                             command=lambda n=n : self.on_marker_x(n))
+        for n in range(0, OutputFrame._MARKER_BTN_CNT):
+            btn = ttk.Button(toolbar, text='M{}'.format(n+1), width=-4, style='Toolbutton',
+                             command=lambda n=n : self._on_marker_x(n))
             btn.grid(row=0, column=14+n)
             self.markerBtns.append(btn)
         # Toolbar end
@@ -1491,8 +1504,8 @@ class OutputFrame(ttk.Frame):
         pw1 = tk.PanedWindow(self, orient='horizontal')
         pw1.grid(row=1, column=0, sticky='nswe')
 
-        self.astOutputFrame = ASTOutputFrame(pw1, selectCmd=self.on_cursor_selection)
-        pw1.add(self.astOutputFrame, stretch="always")
+        self.astOutputFrame = ASTOutputFrame(pw1, selectCmd=self._on_cursor_selection)
+        pw1.add(self.astOutputFrame, stretch='always')
 
         pw2 = tk.PanedWindow(pw1, orient='vertical')
 
@@ -1500,26 +1513,26 @@ class OutputFrame(ttk.Frame):
         # to other cursors in CursorOutputFrame, this must be forwarded to ASTOutputFrame.set_current_cursor
         self.cursorOutputFrame = CursorOutputFrame(pw2, 
                                                    selectCmd=self.astOutputFrame.set_current_cursor)
-        pw2.add(self.cursorOutputFrame, stretch="always")
+        pw2.add(self.cursorOutputFrame, stretch='always')
 
         self.fileOutputFrame = CursorFileOutputFrame(pw2)
-        pw2.add(self.fileOutputFrame, stretch="always")
+        pw2.add(self.fileOutputFrame, stretch='always')
 
-        pw1.add(pw2, stretch="always")
+        pw1.add(pw2, stretch='always')
 
     # There was a cursor selected at left ASTOutputFrame (TreeView on left).
-    def on_cursor_selection(self):
+    def _on_cursor_selection(self):
         curIID = self.astOutputFrame.get_current_iid()
         curCursor = self.astOutputFrame.get_current_cursor()
         if curIID != self.curIID: # do not update history if you currently walk through it
-            self.set_active_cursor(curCursor)
-            self.add_history(curIID)
+            self._set_active_cursor(curCursor)
+            self._add_history(curIID)
             self.curIID = curIID
-        self.update_doubles()
+        self._update_doubles()
 
     # Set internal active cursor without updating history.
     # This is only called on cursor selection (via ASTOutputFrame) or history walk.
-    def set_active_cursor(self, cursor):
+    def _set_active_cursor(self, cursor):
         self.curCursor = cursor
         self.cursorOutputFrame.set_cursor(cursor)
         self.fileOutputFrame.set_cursor(cursor)
@@ -1528,9 +1541,9 @@ class OutputFrame(ttk.Frame):
     def clear_history(self):
         self.history = []
         self.historyPos = -1
-        self.update_history_buttons()
+        self._update_history_buttons()
 
-    def add_history(self, iid):
+    def _add_history(self, iid):
         if self.historyPos < len(self.history):
             # we travel backward in time and change the history
             # so we change the time line and the future
@@ -1538,34 +1551,34 @@ class OutputFrame(ttk.Frame):
             self.history = self.history[:(self.historyPos+1)]
             # now the future is an empty sheet of paper
 
-        if len(self.history) >= OutputFrame._max_history: # history to long?
+        if len(self.history) >= OutputFrame._MAX_HISTORY: # history to long?
             self.history = self.history[1:]
         else:
             self.historyPos = self.historyPos + 1
 
         self.history.append(iid)
-        self.update_history_buttons()
+        self._update_history_buttons()
 
     def go_history_backward(self):
         if self.historyPos > 0:
             self.historyPos = self.historyPos - 1
-            self.update_history()
-        self.update_history_buttons()
+            self._update_history()
+        self._update_history_buttons()
 
     def go_history_forward(self):
         if (self.historyPos+1) < len(self.history):
             self.historyPos = self.historyPos + 1
-            self.update_history()
-        self.update_history_buttons()
+            self._update_history()
+        self._update_history_buttons()
 
     # Switch to right cursor after walk through history.
-    def update_history(self):
+    def _update_history(self):
         newIID = self.history[self.historyPos]
-        self.curIID = newIID # set this before on_cursor_selection() is called
-        self.astOutputFrame.set_current_iid(newIID) # this will cause call of on_cursor_selection()
-        self.set_active_cursor(self.astOutputFrame.get_current_cursor())
+        self.curIID = newIID # set this before _on_cursor_selection() is called
+        self.astOutputFrame.set_current_iid(newIID) # this will cause call of _on_cursor_selection()
+        self._set_active_cursor(self.astOutputFrame.get_current_cursor())
 
-    def update_history_buttons(self):
+    def _update_history_buttons(self):
         hLen = len(self.history)
         hPos = self.historyPos
 
@@ -1579,7 +1592,7 @@ class OutputFrame(ttk.Frame):
         else:
             self.historyForwardBtn.config(state='disabled')
 
-    def clear_doubles(self):
+    def _clear_doubles(self):
         self.doublesForwardBtn.config(state='disabled')
         self.doublesLabel.config(state='disabled')
         self.doublesLabel.config(text='-/-')
@@ -1600,7 +1613,7 @@ class OutputFrame(ttk.Frame):
             self.astOutputFrame.set_current_iid(newIID)
 
     # Update buttons states and label value for doubles (some cursors can be found several times in AST).
-    def update_doubles(self):
+    def _update_doubles(self):
         iids = self.astOutputFrame.get_current_iids()
         if isinstance(iids, list):
             self.doublesForwardBtn.config(state='normal')
@@ -1608,34 +1621,34 @@ class OutputFrame(ttk.Frame):
             self.doublesLabel.config(text='{0}/{1}'.format(iids.index(self.curIID)+1, len(iids)))
             self.doublesBackwardBtn.config(state='normal')
         else:
-            self.clear_doubles()
+            self._clear_doubles()
 
     def clear_search(self):
         self.searchResult = []
-        self.update_search()
+        self._update_search()
 
-    def on_search(self):
+    def _on_search(self):
         search = SearchDialog(self.winfo_toplevel())
         if search.result:
             data = search.get_data()
             self.searchResult = self.astOutputFrame.search(**data)
             self.searchPos = 0
-            self.update_search()
+            self._update_search()
             if len(self.searchResult) > 0:
                 self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
 
     def go_search_backward(self):
         self.searchPos = (self.searchPos - 1) % len(self.searchResult)
         self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
-        self.update_search()
+        self._update_search()
 
     def go_search_forward(self):
         self.searchPos = (self.searchPos + 1) % len(self.searchResult)
         self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
-        self.update_search()
+        self._update_search()
 
     # Update buttons states and label value for search.
-    def update_search(self):
+    def _update_search(self):
         cnt = len(self.searchResult)
         if cnt > 0:
             self.searchForwardBtn.config(state='normal')
@@ -1649,27 +1662,27 @@ class OutputFrame(ttk.Frame):
             self.searchBackwardBtn.config(state='disabled')
 
     # Update button states for marker.
-    def update_marker(self):
-        for n in range(0, OutputFrame._marker_btn_cnt):
-            if self.marker[n]:
+    def _update_marker(self):
+        for n in range(0, OutputFrame._MARKER_BTN_CNT):
+            if self.marker[n] is not None:
                 self.markerBtns[n].config(state='normal')
             else:
                 self.markerBtns[n].config(state='disabled')
 
     # [MS] clicked
-    def on_marker_set(self):
+    def _on_marker_set(self):
         if self.markerSetState.get():
             for btn in self.markerBtns:
                 btn.config(state='normal')
         else:
-            self.update_marker()
+            self._update_marker()
 
     # [M#] clicked
-    def on_marker_x(self, num):
+    def _on_marker_x(self, num):
         if self.markerSetState.get():
             self.markerSetState.set(0)
             self.marker[num]=self.curCursor
-            self.update_marker()
+            self._update_marker()
         else:
             self.astOutputFrame.set_current_cursor(self.marker[num])
 
@@ -1677,13 +1690,13 @@ class OutputFrame(ttk.Frame):
     def clear(self):
         self.curIID = ''
         self.clear_history()
-        self.clear_doubles()
+        self._clear_doubles()
         self.clear_search()
-        for n in range(0, OutputFrame._marker_btn_cnt):
+        for n in range(0, OutputFrame._MARKER_BTN_CNT):
             self.marker[n] = None
         self.searchBtn.config(state='disabled')
         self.markerSetBtn.config(state='disabled')
-        self.update_marker()
+        self._update_marker()
         self.astOutputFrame.clear()
         self.cursorOutputFrame.clear()
         self.fileOutputFrame.clear()
@@ -1698,23 +1711,23 @@ class OutputFrame(ttk.Frame):
 class Application(ttk.Frame):
     def __init__(self, master=None, file=None):
         ttk.Frame.__init__(self, master)
-        self.set_style()
+        self._set_style()
         self.grid(sticky='nswe')
-        self.create_widgets()
+        self._create_widgets()
 
         self.index = clang.cindex.Index.create()
 
         if file:
             self.inputFrame.load_filename(file)
         else:
-            self.inputFrame.set_filename("select file to parse =>")
-            self.inputFrame.set_args(["-xc++",
-                                      "-std=c++14",
-                                      "-I/your/include/path",
-                                      "-I/more/include/path"])
+            self.inputFrame.set_filename('select file to parse =>')
+            self.inputFrame.set_args(['-xc++',
+                                      '-std=c++14',
+                                      '-I/your/include/path',
+                                      '-I/more/include/path'])
 
 
-    def create_widgets(self):
+    def _create_widgets(self):
         top=self.winfo_toplevel()
         top.rowconfigure(0, weight=1)
         top.columnconfigure(0, weight=1)
@@ -1724,7 +1737,7 @@ class Application(ttk.Frame):
 
         self.notebook = ttk.Notebook(self)
 
-        self.inputFrame = InputFrame(self.notebook, parseCmd=self.on_parse)
+        self.inputFrame = InputFrame(self.notebook, parseCmd=self._on_parse)
 
         self.errorFrame = ErrorFrame(self.notebook)
         self.outputFrame = OutputFrame(self.notebook)
@@ -1738,13 +1751,13 @@ class Application(ttk.Frame):
             command=self.quit)
         quitButton.grid(row=1, column=0, sticky='we')
 
-    def set_style(self):
+    def _set_style(self):
         s = ttk.Style()
         # center text in toolbuttons
         s.configure('Toolbutton', anchor='center', padding=s.lookup('TButton', 'padding'))
 
     # [parse] button is clicked
-    def on_parse(self):
+    def _on_parse(self):
         self.errorFrame.clear()
         self.outputFrame.clear()
         fileName = self.inputFrame.get_filename()
@@ -1776,5 +1789,5 @@ def main():
     app.master.title('PyClASVi')
     app.mainloop()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   main()
