@@ -1197,7 +1197,8 @@ class FileOutputFrame(ttk.Frame):
             srcFrom =  '{0}.{1}'.format(srcRange.start.line, srcRange.start.column-1)
             srcTo =  '{0}.{1}'.format(srcRange.end.line, srcRange.end.column-1)
             self.fileText.tag_add('range', srcFrom, srcTo)
-            self.fileText.see(srcFrom)
+            self.fileText.see(srcTo)    # first scroll to the end
+            self.fileText.see(srcFrom)  # then to the start, so usually all is shown
 
         if isinstance(srcLocation, clang.cindex.SourceLocation):
             if srcLocation.file:
