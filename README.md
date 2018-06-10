@@ -61,7 +61,7 @@ Select one entry (Clang calls it Cursor) to find more information on the right.
 
 ### Windows
 
-![PyClASVi under Linux](doc/img/PyClASVi_Windows.png)
+![PyClASVi under Windows](doc/img/PyClASVi_Windows.png)
 
 First download and install Python (<http://www.python.org>). Do not use the embeddable zip file, it does not include Tcl/tk.
 
@@ -76,6 +76,10 @@ To run PyClASVi enter the following commands:
     py pyclasvi.py
 
 You don't need the first line if you checked the corresponding option while installing LLVM.
+
+## Documentation
+
+[How to use Python Clang AST Viewer](doc/PyClASVi_usage.md)
 
 ## License
 
