@@ -1530,6 +1530,7 @@ class OutputFrame(ttk.Frame):
             self._add_history(curIID)
             self.curIID = curIID
         self._update_doubles()
+        self._update_search()
 
     # Set internal active cursor without updating history.
     # This is only called on cursor selection (via ASTOutputFrame) or history walk.
@@ -1641,19 +1642,25 @@ class OutputFrame(ttk.Frame):
     def go_search_backward(self):
         self.searchPos = (self.searchPos - 1) % len(self.searchResult)
         self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
-        self._update_search()
 
     def go_search_forward(self):
         self.searchPos = (self.searchPos + 1) % len(self.searchResult)
         self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
-        self._update_search()
 
     # Update buttons states and label value for search.
     def _update_search(self):
         cnt = len(self.searchResult)
         if cnt > 0:
+            serchIID = self.searchResult[self.searchPos]
+            if self.curIID != serchIID:
+                if self.curIID in self.searchResult:
+                    self.searchPos = self.searchResult.index(self.curIID)
+                    serchIID = self.curIID
+            if self.curIID != serchIID:
+                self.serachLabel.config(state='disabled')
+            else:
+                self.serachLabel.config(state='normal')
             self.searchForwardBtn.config(state='normal')
-            self.serachLabel.config(state='normal')
             self.serachLabel.config(text='{0}/{1}'.format(self.searchPos+1, cnt))
             self.searchBackwardBtn.config(state='normal')
         else:
