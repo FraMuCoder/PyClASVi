@@ -134,8 +134,23 @@ class InputFrame(ttk.Frame):
         self.stdValue = tk.StringVar(value=InputFrame._STD_OPTIONS[0])   # Option starting with "-std"
         self._create_widgets()
 
+    _SOURCEFILETYPES = (
+        ('All source files', '.h', 'TEXT'),
+        ('All source files', '.c', 'TEXT'),
+        ('All source files', '.hh', 'TEXT'),
+        ('All source files', '.hpp', 'TEXT'),
+        ('All source files', '.hxx', 'TEXT'),
+        ('All source files', '.h++', 'TEXT'),
+        ('All source files', '.C', 'TEXT'),
+        ('All source files', '.cc', 'TEXT'),
+        ('All source files', '.cpp', 'TEXT'),
+        ('All source files', '.cxx', 'TEXT'),
+        ('All source files', '.c++', 'TEXT'),
+        ('All files', '*'),
+        )
+
     _FILETYPES = (
-        ('Text files', '*.txt', 'TEXT'),
+        ('Text files', '.txt', 'TEXT'),
         ('All files', '*'),
         )
     _X_OPTIONS = (
@@ -244,7 +259,7 @@ class InputFrame(ttk.Frame):
                 f.write(join(arg, '\n'))
 
     def _on_select_file(self):
-        fn = tkFileDialog.askopenfilename()
+        fn = tkFileDialog.askopenfilename(filetypes=self._SOURCEFILETYPES)
         if fn:
             self.set_filename(fn)
 
