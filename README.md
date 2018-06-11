@@ -81,7 +81,7 @@ You don't need the first line if you checked the corresponding option while inst
 
 [How to use Python Clang AST Viewer](doc/PyClASVi_usage.md)
 
-[How to use Python Clang](python_clang_usage.md)
+[How to use Python Clang](doc/python_clang_usage.md)
 
 ## License
 
