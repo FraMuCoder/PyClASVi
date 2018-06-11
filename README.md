@@ -54,7 +54,7 @@ Select a file to parse and add some arguments for the Clang parser.
 There must be only one argument per line.
 It looks like you need also the standard includes like `-I/usr/include` and `-I/usr/include/clang/3.8/include`.
 
-Press [Parse] to start the parser.
+Press `[Parse]` to start the parser.
 
 If all works fine there is no warning or error on the Error tab and the Output tab shows the AST on the left.
 Select one entry (Clang calls it Cursor) to find more information on the right.
@@ -80,6 +80,8 @@ You don't need the first line if you checked the corresponding option while inst
 ## Documentation
 
 [How to use Python Clang AST Viewer](doc/PyClASVi_usage.md)
+
+[How to use Python Clang](python_clang_usage.md)
 
 ## License
 

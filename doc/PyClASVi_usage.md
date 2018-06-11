@@ -30,7 +30,7 @@ In the first line you can select the file to parse. The lower textbox contains a
 one option per line.
 You can enter this options by yourself or use the toolbar.
 
-Finally press [parse] to start.
+Finally press `[parse]` to start.
 
 * `Input file`:
 
@@ -80,7 +80,7 @@ If there are some warnings or errors while parsing you will find all diagnostics
 ![Errors tab](img/Errors.png)
 
 Click on one diagnostic in the table to see corresponding location (yellow) in source code below.
-Only the first occur will be shown.
+Only the first occurrence will be shown.
 
 * `Filter:`
 
@@ -102,7 +102,7 @@ You will see an unfolded attribute stays unfolded even you select an other curso
 Some attributes have sub attributes so you can also fold and unfold it.
 
 
-If you are interesting in a special attribute click its name to hight light it.
+If you are interesting in a special attribute click its name to hightlight it.
 If you select on other cursor the view is automatically scrolled to this attribute.
 
 * Main toolbar
@@ -114,7 +114,7 @@ If you select on other cursor the view is automatically scrolled to this attribu
 
       Some cursors exists several times in AST. These buttons are only active for such cursor.
       You can go the others position in AST using the arrow buttons. The label between the buttons
-      shows who many doubles there are and witch one you currently have selected.
+      shows who many doubles there are and which one you currently have selected.
 
     * `[Search]` `[<]` `#/#` `[>]`
 
@@ -133,7 +133,7 @@ If you select on other cursor the view is automatically scrolled to this attribu
 * Source code toolbar
     * `[Cursor]`
 
-      Click this to see position and hole range of the cursor in source code.
+      Click this to see position and whole range of the cursor in source code.
 
       This is the default after selecting a cursor.
 
