@@ -74,9 +74,9 @@ Remark clang will never return a list but something you can iterate.
 
 ```python
 children = root.get_children()
-#print(children[0].spelling) # do not work
+#print(children[0].spelling) # does not work
 children = list(children)
-print(children[0].spelling) # work
+print(children[0].spelling) # works
 ```
 
 Print the whole AST.
@@ -129,7 +129,6 @@ def check_parents(cursor, root=None):
     if (cursor.semantic_parent is not None) and (cursor.lexical_parent is not None):
         if cursor.semantic_parent == cursor.lexical_parent:
             print('Both are the same.')
-            pass
         else:
             print('They differ.')
     if sem_root:
@@ -169,3 +168,30 @@ for c1 in allcursors:
         print('Found cursor {} {} {} times in AST.'.format(
             c1.spelling, c1.kind, count))
 ```
+
+## Hints
+
+Sometimes you want to compare two cursors. You can use the compare operator but you must be sure
+to compare only equal kind of object or an error will be thrown.
+As we see in last section some methods typical returning a cursor
+may also return nothing (None).
+
+
+```python
+cmp = root
+
+for c in root.walk_preorder():
+    #if c.lexical_parent == cmp: # will throw an error
+    if (c.lexical_parent is not None) and (c.lexical_parent == cmp): # works
+        print('Cursor {} {} has {} {} as lexical_parent.'.format(
+            c.spelling, c.kind, cmp.spelling, cmp.kind))
+```
+
+You can not access every attribute for every cursor or its sub attributes.
+For example you can not access `enum_type` and `enum_value` from not enum cursors.
+In PyClASVi you can see the exceptions you will get.
+
+![Exceptions in PyClASVi](Exception.png)
+
+Also do not try to access every attribute of a `Type` object witch has the kind `TypeKind.INVALID`.
+Especially `get_address_space()` may cause a crash not just an exception (tested with libclang 5.0).

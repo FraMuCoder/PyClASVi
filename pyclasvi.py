@@ -10,11 +10,6 @@ Enter 'pyclasvi.py -h' to show the usage
 PyClASVi is distributed under the MIT License, see LICENSE file.
 """
 
-# TODO
-#
-# General
-#   Add documentation "How to access Clang AST"
-
 import sys
 
 if sys.version_info.major == 2:
@@ -877,7 +872,7 @@ class CursorOutputFrame(ttk.Frame):
     def _on_section_leave(self, event):
         self.cursorText.configure(cursor='xterm')
 
-    # Where was a click on [+]/[-], so we need to fold or unfold a section.
+    # There was a click on [+]/[-], so we need to fold or unfold a section.
     def _on_section_click(self, event):
         curIdx = self.cursorText.index('@{0},{1}'.format(event.x, event.y))
         curLine = int(curIdx.split('.')[0])
