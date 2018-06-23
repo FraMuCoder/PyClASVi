@@ -34,6 +34,8 @@ For Python 2 you can run this:
 
     sudo apt-get install libclang1-3.8 python-clang-3.8 python-tk
 
+Some older versions of Python clang binding do not support Python 3.
+For clang up to version 3.9 you can use libclang-py3 instead.
 For Python 3 you can run this:
 
     sudo apt-get install clang-3.8 python3-pip python3-tk
@@ -68,7 +70,12 @@ First download and install Python (<http://www.python.org>). Do not use the embe
 Also download and install Clang as part of the LLVM project (<http://llvm.org/>).
 If you check the option to set the PATH variable you don't need to do it later.
 LLVM do not install any standard libraries or headers so you need to install an extra compiler.
-As default VisualSudio is used.
+As default VisualStudio is used.
+
+Install clang python binding using pip.
+If you want a special version, e.g. 5.0, you can enter the following command.
+
+    py -m pip install clang==5.0
 
 To run PyClASVi enter the following commands:
 

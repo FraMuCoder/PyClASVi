@@ -100,7 +100,7 @@ for c in root.walk_preorder():
 You might think every cursor must have a parent cursor without the root of course.
 But there are two properties with parent in name: `semantic_parent` and `lexical_parent`.
 
-Try the following code and you will see that you can't always use it to go back to AST root.
+Try the following code and you will see that you can't always use it to go back to parent in AST.
 
 ```python
 def check_parents(cursor, root=None):
@@ -191,7 +191,7 @@ You can not access every attribute for every cursor or its sub attributes.
 For example you can not access `enum_type` and `enum_value` from not enum cursors.
 In PyClASVi you can see the exceptions you will get.
 
-![Exceptions in PyClASVi](Exception.png)
+![Exceptions in PyClASVi](img/Exception.png)
 
 Also do not try to access every attribute of a `Type` object witch has the kind `TypeKind.INVALID`.
 Especially `get_address_space()` may cause a crash not just an exception (tested with libclang 5.0).
