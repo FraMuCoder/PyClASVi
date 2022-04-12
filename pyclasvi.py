@@ -1727,7 +1727,7 @@ class OutputFrame(ttk.Frame):
 
 # Main window combine all frames in tabs an contains glue logic between these frames
 class Application(ttk.Frame):
-    def __init__(self, master=None, file=None):
+    def __init__(self, master=None, file=None, auto_parse=False):
         ttk.Frame.__init__(self, master)
         self._set_style()
         self.grid(sticky='nswe')
@@ -1737,6 +1737,8 @@ class Application(ttk.Frame):
 
         if file:
             self.inputFrame.load_filename(file)
+            if auto_parse:
+                self._on_parse()
         else:
             self.inputFrame.set_filename('select file to parse =>')
             self.inputFrame.set_args(['-xc++',
@@ -1794,6 +1796,7 @@ class Application(ttk.Frame):
 def main():
     parser = argparse.ArgumentParser(description='Python Clang AST Viewer')
     parser.add_argument('-l', '--libfile', help='select Clang library file', nargs=1, dest='libFile')
+    parser.add_argument('-p', '--parse', help='automatically parse the input file', action='store_true', dest='parse')
     parser.add_argument('file', help='''Text file containing input data,
                         1st line = file to parse,
                         next lines = Clang arguments, one argument per line''',
@@ -1803,7 +1806,7 @@ def main():
     if args.libFile:
         clang.cindex.Config.set_library_file(args.libFile[0])
 
-    app = Application(file=args.file)
+    app = Application(file=args.file, auto_parse=args.parse)
     app.master.title('PyClASVi')
     app.mainloop()
 
