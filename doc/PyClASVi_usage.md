@@ -4,19 +4,21 @@
 
 You can call `pyclasvi.py -h` to get the command line help.
 
-    usage: pyclasvi.py [-h] [-l LIBFILE] [file]
+    usage: pyclasvi.py [-h] [-l LIBFILE] [-p] [file]
 
     Python Clang AST Viewer
 
     positional arguments:
-    file                  Text file containing input data, 1st line = file to
+      file                  Text file containing input data, 1st line = file to
                             parse, next lines = Clang arguments, one argument per
                             line
 
     optional arguments:
-    -h, --help            show this help message and exit
-    -l LIBFILE, --libfile LIBFILE
+      -h, --help            show this help message and exit
+      -l LIBFILE, --libfile LIBFILE
                             select Clang library file
+      -p, --parse           automatically parse the input file
+
 
 A typical call may be `./pyclasvi.py /usr/lib/llvm-3.8/lib/libclang.so.1 examples/test_all.txt`.
 
