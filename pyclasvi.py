@@ -31,76 +31,14 @@ import argparse
 import inspect
 import re
 
-
-# Convert objects to a string.
-# Some object have no suitable standard string conversation, so use this.
-def toStr(data):
-    if isinstance(data, bytes):     # Python3 clang binding sometimes return bytes instead of strings
-        return data.decode('ascii') # ASCII should be default in C/C++ but what about comments
-    elif ((data.__class__ == int)   # int but not bool, show decimal and hex
-          or (sys.version_info.major) == 2 and isinstance(data, long)):
-        if data < 0:                    # no negative hex values
-            return str(data)
-        else:
-            return '{0} ({0:#010x})'.format(data)
-    elif isinstance(data, clang.cindex.Cursor): # default output for cursors
-        return '{0} ({1:#010x}) {2}'.format(data.kind.name,
-                                             data.hash,
-                                             data.displayname)
-    elif isinstance(data, clang.cindex.SourceLocation):
-        return 'file:   {0}\nline:   {1}\ncolumn: {2}\noffset: {3}'.format(
-            data.file, data.line, data.column, data.offset)
-    else:
-        return str(data)
-
-
-# Just join strings.
-def join(*args):
-    return ''.join(args)
-
-
-# Join everything to a string
-def xjoin(*args):
-    return ''.join((str(a) for a in args))
-
-
-# check if m is an instance methode
-def is_instance_methode(m):
-    return inspect.ismethod(m)
-
-
-# has this instance methode only the self parameter?
-def is_simple_instance_methode(m):
-    argSpec = inspect.getargspec(m)
-    return len(argSpec.args) == 1 # only self
-
-
-# get methode definition like "(arg1, arg2)" as string
-def get_methode_prototype(m):
-    argSpec = inspect.getargspec(m)
-    return inspect.formatargspec(*argSpec)
-
-
-# check if obj is in list
-def is_obj_in_stack(obj, objStack):
-    for o in objStack:
-        if o.__class__ == obj.__class__: # some compare function trow exception if types are not equal
-            if o == obj:
-                return True
-    return False
-
-
-# Cursor objects have a hash property but no __hash__ method
-# You can use this class to make Cursor object hashable
-class HashableObj:
-    def __init__(self, obj):
-        self.obj = obj
-
-    def __eq__(self, other):
-        return self.obj == other.obj
-
-    def __hash__(self):
-        return self.obj.hash
+from pyclasvi.utils import toStr
+from pyclasvi.utils import join
+from pyclasvi.utils import xjoin
+from pyclasvi.utils import is_instance_method
+from pyclasvi.utils import is_simple_instance_method
+from pyclasvi.utils import get_method_prototype
+from pyclasvi.utils import is_obj_in_stack
+import pyclasvi.data
 
 
 # Make widget scrollable by adding scrollbars to the right and below it.
@@ -516,7 +454,7 @@ class ASTOutputFrame(ttk.Frame):
     def get_current_iids(self):
         cursor = self.get_current_cursor()
         if cursor is not None:
-            return self.mapCursorToIID[HashableObj(cursor)]
+            return self.mapCursorToIID[pyclasvi.data.HashableObj(cursor)]
         else:
             return None
 
@@ -533,7 +471,7 @@ class ASTOutputFrame(ttk.Frame):
         self.astView.see(iid)
 
     def set_current_cursor(self, cursor):
-        iid = self.mapCursorToIID[HashableObj(cursor)]
+        iid = self.mapCursorToIID[pyclasvi.data.HashableObj(cursor)]
         if isinstance(iid, list): # partly multimap
             iid = iid[0]
         self.set_current_iid(iid)
@@ -554,7 +492,7 @@ class ASTOutputFrame(ttk.Frame):
                                         text=toStr(childCursor),
                                         tags=['default'])
             self.mapIIDtoCursor[newIID] = childCursor
-            hCursor = HashableObj(childCursor)
+            hCursor = pyclasvi.data.HashableObj(childCursor)
             if hCursor in self.mapCursorToIID: # already in map, make a partly multimap
                 self.cntDouble = self.cntDouble + 1
                 data = self.mapCursorToIID[hCursor]
@@ -589,7 +527,7 @@ class ASTOutputFrame(ttk.Frame):
                                   text=toStr(root),
                                   tags=['default'])
         self.mapIIDtoCursor[iid] = root
-        self.mapCursorToIID[HashableObj(root)] = iid
+        self.mapCursorToIID[pyclasvi.data.HashableObj(root)] = iid
         self._insert_children(root, iid)
 
         # some statistics
@@ -725,7 +663,7 @@ class FoldSection:
     def set_show(self, show):
         self.show = show
 
-    # Open this an all children sections.
+    # Open this and all children sections.
     def set_all_show(self, show):
         self.show = show
         if self.members:
@@ -757,8 +695,8 @@ class FoldSection:
 
 # Widget to show nearly all attributes of a Cursor object
 # Private member are ignored and other Cursors are just shown as link.
-# If the attribute its self have attributes they are also up to a defined deep, so you have still a tree.
-# So you have still a tree. This is not implemented by a Treewiew widget but just Text widget.
+# If the attribute its self have attributes they are also shown up to a defined deep,
+# so you have still a tree. This is not implemented by a Treewiew widget but a Text widget.
 # The text widget gives you more layout possibilities but you have to implement the folding logic
 # by your self. Therefore the classes FoldSectionTree and FoldSection are used which also
 # implements some features missed in the Treeview widget.
@@ -773,7 +711,7 @@ class CursorOutputFrame(ttk.Frame):
         self.foldTree = FoldSectionTree()       # contains infos about foldable section (a single member)
 
     _MAX_DEEP = 8               # max deep of foldable sections / attributes
-    _MAX_ITER_OUT = 25          # is a member is an iterator show just the first x elements
+    _MAX_ITER_OUT = 25          # if a member is an iterator show just the first x elements
     _DATA_INDENT = '      '     # indentation for sub sections / attributes
 
     # ignore member with this types
@@ -935,7 +873,7 @@ class CursorOutputFrame(ttk.Frame):
     # Output cursor with link in text widget.
     def _add_cursor(self, cursor):
         # we got an exception if we compare a Cursor object with an other none Cursor object like None
-        # Therfore Cursor == None will not work so we use a try
+        # Therefore Cursor == None will not work so we use a try
         if isinstance(cursor, clang.cindex.Cursor):
             self.cursorText.insert('end', 
                                 toStr(cursor),
@@ -981,9 +919,9 @@ class CursorOutputFrame(ttk.Frame):
             and (attrName in ('get_address_space', 'get_typedef_name'))):
             attrData = 'Do not uses this if kind is TypeKind.INVALID!'
             attrDataTag = 'attr_err'
-        elif is_instance_methode(attrData):
-            attrType = join(attrType,  ' ', get_methode_prototype(attrData))
-            if is_simple_instance_methode(attrData):
+        elif is_instance_method(attrData):
+            attrType = join(attrType,  ' ', get_method_prototype(attrData))
+            if is_simple_instance_method(attrData):
                 try:
                     attrData = attrData()
                     attrType = join(attrType, ' => ', attrData.__class__.__name__)
