@@ -1171,10 +1171,10 @@ class OutputFrame(ttk.Frame):
         toolbar.grid(row=0, column=0, sticky='we')
 
         self.historyBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                            command=self.go_history_backward)
+                                             command=self.go_history_backward)
         self.historyBackwardBtn.grid(row=0, column=0)
         self.historyForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                           command=self.go_history_forward)
+                                            command=self.go_history_forward)
         self.historyForwardBtn.grid(row=0, column=1)
 
         sep = ttk.Separator(toolbar, orient='vertical')
@@ -1184,27 +1184,27 @@ class OutputFrame(ttk.Frame):
         label.grid(row=0, column=3)
 
         self.doublesBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                            command=self.go_doubles_backward)
+                                             command=self.go_doubles_backward)
         self.doublesBackwardBtn.grid(row=0, column=4)
         self.doublesLabel = ttk.Label(toolbar, text='-/-', width=-3, anchor='center')
         self.doublesLabel.grid(row=0, column=5)
         self.doublesForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                           command=self.go_doubles_forward)
+                                            command=self.go_doubles_forward)
         self.doublesForwardBtn.grid(row=0, column=6)
 
         sep = ttk.Separator(toolbar, orient='vertical')
         sep.grid(row=0, column=7, sticky='ns', padx=5, pady=5)
 
         self.searchBtn = ttk.Button(toolbar, text='Search', style='Toolbutton',
-                                   command=self._on_search)
+                                    command=self._on_search)
         self.searchBtn.grid(row=0, column=8)
         self.searchBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                           command=self.go_search_backward)
+                                            command=self.go_search_backward)
         self.searchBackwardBtn.grid(row=0, column=9)
         self.serachLabel = ttk.Label(toolbar, text='-/-', width=-7, anchor='center')
         self.serachLabel.grid(row=0, column=10)
         self.searchForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                          command=self.go_search_forward)
+                                           command=self.go_search_forward)
         self.searchForwardBtn.grid(row=0, column=11)
 
         sep = ttk.Separator(toolbar, orient='vertical')
@@ -1217,9 +1217,9 @@ class OutputFrame(ttk.Frame):
 
         self.markerBtns = []
         for n in range(0, OutputFrame._MARKER_BTN_CNT):
-            btn = ttk.Button(toolbar, text='M{}'.format(n+1), width=-4, style='Toolbutton',
-                             command=lambda n=n : self._on_marker_x(n))
-            btn.grid(row=0, column=14+n)
+            btn = ttk.Button(toolbar, text='M{}'.format(n + 1), width=-4, style='Toolbutton',
+                             command=lambda n=n: self._on_marker_x(n))
+            btn.grid(row=0, column=14 + n)
             self.markerBtns.append(btn)
         # Toolbar end
 
@@ -1234,7 +1234,7 @@ class OutputFrame(ttk.Frame):
 
         # remark ASTOutputFrame is the master for current selected cursor but you can click on a link
         # to other cursors in CursorOutputFrame, this must be forwarded to ASTOutputFrame.set_current_cursor
-        self.cursorOutputFrame = CursorOutputFrame(pw2, 
+        self.cursorOutputFrame = CursorOutputFrame(pw2,
                                                    selectCmd=self.astOutputFrame.set_current_cursor)
         pw2.add(self.cursorOutputFrame, stretch='always')
 
@@ -1247,7 +1247,7 @@ class OutputFrame(ttk.Frame):
     def _on_cursor_selection(self):
         curIID = self.astOutputFrame.get_current_iid()
         curCursor = self.astOutputFrame.get_current_cursor()
-        if curIID != self.curIID: # do not update history if you currently walk through it
+        if curIID != self.curIID:  # do not update history if you currently walk through it
             self._set_active_cursor(curCursor)
             self._add_history(curIID)
             self.curIID = curIID
@@ -1272,10 +1272,10 @@ class OutputFrame(ttk.Frame):
             # we travel backward in time and change the history
             # so we change the time line and the future
             # therefore erase the old future
-            self.history = self.history[:(self.historyPos+1)]
+            self.history = self.history[:(self.historyPos + 1)]
             # now the future is an empty sheet of paper
 
-        if len(self.history) >= OutputFrame._MAX_HISTORY: # history to long?
+        if len(self.history) >= OutputFrame._MAX_HISTORY:  # history to long?
             self.history = self.history[1:]
         else:
             self.historyPos = self.historyPos + 1
@@ -1290,7 +1290,7 @@ class OutputFrame(ttk.Frame):
         self._update_history_buttons()
 
     def go_history_forward(self):
-        if (self.historyPos+1) < len(self.history):
+        if (self.historyPos + 1) < len(self.history):
             self.historyPos = self.historyPos + 1
             self._update_history()
         self._update_history_buttons()
@@ -1298,20 +1298,20 @@ class OutputFrame(ttk.Frame):
     # Switch to right cursor after walk through history.
     def _update_history(self):
         newIID = self.history[self.historyPos]
-        self.curIID = newIID # set this before _on_cursor_selection() is called
-        self.astOutputFrame.set_current_iid(newIID) # this will cause call of _on_cursor_selection()
+        self.curIID = newIID  # set this before _on_cursor_selection() is called
+        self.astOutputFrame.set_current_iid(newIID)  # this will cause call of _on_cursor_selection()
         self._set_active_cursor(self.astOutputFrame.get_current_cursor())
 
     def _update_history_buttons(self):
         hLen = len(self.history)
         hPos = self.historyPos
 
-        if hPos > 0: # we can go backward
+        if hPos > 0:  # we can go backward
             self.historyBackwardBtn.config(state='normal')
         else:
             self.historyBackwardBtn.config(state='disabled')
 
-        if (hLen > 1) and ((hPos+1) < hLen): # we can go forward
+        if (hLen > 1) and ((hPos + 1) < hLen):  # we can go forward
             self.historyForwardBtn.config(state='normal')
         else:
             self.historyForwardBtn.config(state='disabled')
@@ -1342,7 +1342,7 @@ class OutputFrame(ttk.Frame):
         if isinstance(iids, list):
             self.doublesForwardBtn.config(state='normal')
             self.doublesLabel.config(state='normal')
-            self.doublesLabel.config(text='{0}/{1}'.format(iids.index(self.curIID)+1, len(iids)))
+            self.doublesLabel.config(text='{0}/{1}'.format(iids.index(self.curIID) + 1, len(iids)))
             self.doublesBackwardBtn.config(state='normal')
         else:
             self._clear_doubles()
@@ -1383,7 +1383,7 @@ class OutputFrame(ttk.Frame):
             else:
                 self.serachLabel.config(state='normal')
             self.searchForwardBtn.config(state='normal')
-            self.serachLabel.config(text='{0}/{1}'.format(self.searchPos+1, cnt))
+            self.serachLabel.config(text='{0}/{1}'.format(self.searchPos + 1, cnt))
             self.searchBackwardBtn.config(state='normal')
         else:
             self.searchForwardBtn.config(state='disabled')
@@ -1411,7 +1411,7 @@ class OutputFrame(ttk.Frame):
     def _on_marker_x(self, num):
         if self.markerSetState.get():
             self.markerSetState.set(0)
-            self.marker[num]=self.curCursor
+            self.marker[num] = self.curCursor
             self._update_marker()
         else:
             self.astOutputFrame.set_current_cursor(self.marker[num])
@@ -1448,7 +1448,7 @@ class Application(ttk.Frame):
         self.index = clang.cindex.Index.create()
 
         if file:
-            self._input_model.load_filename(file)
+            self._input_model.load_file(file)
             if auto_parse:
                 self._on_parse()
         else:
@@ -1458,12 +1458,12 @@ class Application(ttk.Frame):
                 '-std=c++14',
                 '-I/your/include/path',
                 '-I/more/include/path',
-                ]
+            ]
 
         self._create_widgets()
 
     def _create_widgets(self):
-        top=self.winfo_toplevel()
+        top = self.winfo_toplevel()
         top.rowconfigure(0, weight=1)
         top.columnconfigure(0, weight=1)
 
@@ -1473,7 +1473,8 @@ class Application(ttk.Frame):
         self.notebook = ttk.Notebook(self)
 
         self._input_frame = pyclasvi.view.InputFrame(self.notebook)
-        self._input_frame_controller = pyclasvi.viewcontrol.InputFrameController(self._input_model, self._input_frame, parse_cmd=self._on_parse)
+        self._input_frame_controller = pyclasvi.viewcontrol.InputFrameController(self._input_model, self._input_frame,
+                                                                                 parse_cmd=self._on_parse)
         self._input_frame.set_controller(self._input_frame_controller)
 
         self.errorFrame = ErrorFrame(self.notebook)
@@ -1485,7 +1486,7 @@ class Application(ttk.Frame):
         self.notebook.grid(row=0, column=0, sticky='nswe')
 
         quitButton = ttk.Button(self, text='Quit',
-            command=self.quit)
+                                command=self.quit)
         quitButton.grid(row=1, column=0, sticky='we')
 
     def _set_style(self):
@@ -1527,5 +1528,6 @@ def main():
     app.master.title('PyClASVi')
     app.mainloop()
 
+
 if __name__ == '__main__':
-  main()
+    main()
