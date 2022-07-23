@@ -80,3 +80,11 @@ class InputModel:
             f.write(join(self.filename, '\n'))
             for arg in self.arguments:
                 f.write(join(arg, '\n'))
+
+
+class OutputModel:
+    def __init__(self):
+        self._translation_unit = None
+
+    def set_translation_unit(self, tu):
+        self._translation_unit = tu

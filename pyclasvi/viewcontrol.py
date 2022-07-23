@@ -42,3 +42,13 @@ class InputFrameController:
         if self._parse_cmd:
             self._view.sync_to_model(self._model)
             self._parse_cmd()
+
+
+class OutputFrameController:
+    def __init__(self, model, view):
+        self._model = model
+        self._view = view
+
+    def set_translation_unit(self, tu):
+        self._model.set_translation_unit(tu)
+        self._view.set_translation_unit(tu)

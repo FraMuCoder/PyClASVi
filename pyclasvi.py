@@ -287,7 +287,7 @@ class ASTOutputFrame(ttk.Frame):
             if deep > self.cntMaxDeep:
                 self.cntMaxDeep = deep
 
-    def set_translationunit(self, tu):
+    def set_translation_unit(self, tu):
         self.cntCursors = 1
         self.cntDouble = 0
         self.cntMaxDoubles = 0
@@ -1143,6 +1143,7 @@ class SearchDialog(tk.Toplevel):
 class OutputFrame(ttk.Frame):
     def __init__(self, master=None):
         ttk.Frame.__init__(self, master)
+        self._controller = None
         self.grid(sticky='nswe')
         self.markerSetState = tk.IntVar(value=0) # after click [M#] Button 0: jump to marked cursor
                                                  #                         1: mark current cursor
@@ -1242,6 +1243,9 @@ class OutputFrame(ttk.Frame):
         pw2.add(self.fileOutputFrame, stretch='always')
 
         pw1.add(pw2, stretch='always')
+
+    def set_controller(self, controller):
+        self._controller = controller
 
     # There was a cursor selected at left ASTOutputFrame (TreeView on left).
     def _on_cursor_selection(self):
@@ -1431,9 +1435,9 @@ class OutputFrame(ttk.Frame):
         self.cursorOutputFrame.clear()
         self.fileOutputFrame.clear()
 
-    def set_translationunit(self, tu):
+    def set_translation_unit(self, tu):
         self.clear()
-        self.astOutputFrame.set_translationunit(tu)
+        self.astOutputFrame.set_translation_unit(tu)
         self.searchBtn.config(state='normal')
 
 
@@ -1442,6 +1446,7 @@ class Application(ttk.Frame):
     def __init__(self, master=None, file=None, auto_parse=False):
         ttk.Frame.__init__(self, master)
         self._input_model = pyclasvi.data.InputModel()
+        self._output_model = pyclasvi.data.OutputModel()
         self._set_style()
         self.grid(sticky='nswe')
 
@@ -1478,11 +1483,14 @@ class Application(ttk.Frame):
         self._input_frame.set_controller(self._input_frame_controller)
 
         self.errorFrame = ErrorFrame(self.notebook)
-        self.outputFrame = OutputFrame(self.notebook)
+        self._output_frame = OutputFrame(self.notebook)
+        self._output_frame_controller = pyclasvi.viewcontrol.OutputFrameController(
+            self._output_model, self._output_frame)
+        self._output_frame.set_controller(self._output_frame_controller)
 
         self.notebook.add(self._input_frame, text='Input')
         self.notebook.add(self.errorFrame, text='Errors')
-        self.notebook.add(self.outputFrame, text='Output')
+        self.notebook.add(self._output_frame, text='Output')
         self.notebook.grid(row=0, column=0, sticky='nswe')
 
         quitButton = ttk.Button(self, text='Quit',
@@ -1497,18 +1505,18 @@ class Application(ttk.Frame):
     # [parse] button is clicked
     def _on_parse(self):
         self.errorFrame.clear()
-        self.outputFrame.clear()
+        self._output_frame.clear()
         fileName = self._input_model.filename
         args = self._input_model.arguments
         tu = self.index.parse(fileName, args=args)
 
         cntErr = self.errorFrame.set_errors(tu.diagnostics)
-        self.outputFrame.set_translationunit(tu)
+        self._output_frame_controller.set_translation_unit(tu)
 
         if cntErr > 0:
             self.notebook.select(self.errorFrame)
         else:
-            self.notebook.select(self.outputFrame)
+            self.notebook.select(self._output_frame)
 
 
 def main():
