@@ -193,11 +193,8 @@ class ASTOutputFrame(ttk.Frame):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
         self._create_widgets()
-        self.translationunit = None
-        self.mapIIDtoCursor = {}        # Treeview use IIDs (stings) to identify a note,
-        self.mapCursorToIID = {}        # so we need to map between IID and Cursor in both direction.
-                                        # One Cursor may have a list of IIDs if several times found in AST.
-        self.selectCmd = selectCmd      # Callback after selecting a Cursor
+        self._controller = None
+        self._model = None  # ToDo: remove later
 
     def _create_widgets(self):
         self.rowconfigure(0, weight=1)
@@ -214,12 +211,18 @@ class ASTOutputFrame(ttk.Frame):
         self.astView.heading('#0', text='Cursor')
         self.astView.grid(row=0, column=0, sticky='nswe')
 
-    def _on_selection(self, event):
-        if self.selectCmd is not None:
-            self.selectCmd()
+    def set_controller(self, controller):
+        self._controller = controller
 
-    def set_select_cmd(self, cmd):
-        self.selectCmd = cmd
+    def sync_from_model(self, model):
+        self._model = model
+        self.clear()
+        model.traverse(self._insert_children)
+
+    def _on_selection(self, event):
+        if self._controller is not None:
+            iid = self.astView.focus()
+            self._controller.on_ast_selection(iid)
 
     def get_current_iid(self):
         return self.astView.focus()
@@ -228,7 +231,7 @@ class ASTOutputFrame(ttk.Frame):
     def get_current_iids(self):
         cursor = self.get_current_cursor()
         if cursor is not None:
-            return self.mapCursorToIID[pyclasvi.data.HashableObj(cursor)]
+            return self._model.get_ids_from_cursor(cursor)
         else:
             return None
 
@@ -236,7 +239,7 @@ class ASTOutputFrame(ttk.Frame):
         curCursor = None
         curItem = self.astView.focus()
         if curItem:
-            curCursor = self.mapIIDtoCursor[curItem]
+            curCursor = self._model.get_cursor_from_id(curItem)
         return curCursor
 
     def set_current_iid(self, iid):
@@ -245,7 +248,7 @@ class ASTOutputFrame(ttk.Frame):
         self.astView.see(iid)
 
     def set_current_cursor(self, cursor):
-        iid = self.mapCursorToIID[pyclasvi.data.HashableObj(cursor)]
+        iid = self._model.get_ids_from_cursor(cursor)
         if isinstance(iid, list): # partly multimap
             iid = iid[0]
         self.set_current_iid(iid)
@@ -253,61 +256,17 @@ class ASTOutputFrame(ttk.Frame):
     def clear(self):
         for i in self.astView.get_children():
             self.astView.delete(i)
-        self.translationunit = None
-        self.mapIIDtoCursor = {}
-        self.mapCursorToIID = {}
 
-    def _insert_children(self, cursor, iid, deep=1):
-        cntChildren = 0
-        for childCursor in cursor.get_children():
-            cntChildren = cntChildren + 1
-            newIID = self.astView.insert(iid,
-                                        'end',
-                                        text=toStr(childCursor),
-                                        tags=['default'])
-            self.mapIIDtoCursor[newIID] = childCursor
-            hCursor = pyclasvi.data.HashableObj(childCursor)
-            if hCursor in self.mapCursorToIID: # already in map, make a partly multimap
-                self.cntDouble = self.cntDouble + 1
-                data = self.mapCursorToIID[hCursor]
-                if isinstance(data, str):
-                    data = [data]
-                    self.mapCursorToIID[hCursor] = data
-                data.append(newIID)
-                if len(data) > self.cntMaxDoubles:
-                    self.cntMaxDoubles = len(data)
-            else:
-                self.mapCursorToIID[hCursor] = newIID
-            self._insert_children(childCursor, newIID, deep+1)
-            self.cntCursors = self.cntCursors + 1
+    def _insert_children(self, **kwargs):
+        cursor = kwargs['cursor']
+        p_id = kwargs['parent_id']
+        c_id = kwargs['cursor_id']
 
-        if cntChildren > 0:
-            if cntChildren > self.cntMaxChildren:
-                self.cntMaxChildren = cntChildren
-            if deep > self.cntMaxDeep:
-                self.cntMaxDeep = deep
-
-    def set_translation_unit(self, tu):
-        self.cntCursors = 1
-        self.cntDouble = 0
-        self.cntMaxDoubles = 0
-        self.cntMaxChildren = 0
-        self.cntMaxDeep = 0
-        self.clear()
-        self.translationunit = tu
-        root = tu.cursor
-        iid = self.astView.insert('',
-                                  'end',
-                                  text=toStr(root),
-                                  tags=['default'])
-        self.mapIIDtoCursor[iid] = root
-        self.mapCursorToIID[pyclasvi.data.HashableObj(root)] = iid
-        self._insert_children(root, iid)
-
-        # some statistics
-        print('AST has {0} cursors including {1} doubles.'.format(self.cntCursors, self.cntDouble))
-        print('max doubles: {0}, max children {1}, max deep {2}'.format(
-            self.cntMaxDoubles, self.cntMaxChildren, self.cntMaxDeep))
+        self.astView.insert(p_id,
+                            'end',
+                            iid=c_id,
+                            text=toStr(cursor),
+                            tags=['default'])
 
     # Search for IIDs matching to Cursors matching to kwargs.
     def search(self, **kwargs):
@@ -1226,15 +1185,15 @@ class OutputFrame(ttk.Frame):
         pw1 = tk.PanedWindow(self, orient='horizontal')
         pw1.grid(row=1, column=0, sticky='nswe')
 
-        self.astOutputFrame = ASTOutputFrame(pw1, selectCmd=self._on_cursor_selection)
-        pw1.add(self.astOutputFrame, stretch='always')
+        self._ast_output_frame = ASTOutputFrame(pw1)
+        pw1.add(self._ast_output_frame, stretch='always')
 
         pw2 = tk.PanedWindow(pw1, orient='vertical')
 
         # remark ASTOutputFrame is the master for current selected cursor but you can click on a link
         # to other cursors in CursorOutputFrame, this must be forwarded to ASTOutputFrame.set_current_cursor
         self.cursorOutputFrame = CursorOutputFrame(pw2,
-                                                   selectCmd=self.astOutputFrame.set_current_cursor)
+                                                   selectCmd=self._ast_output_frame.set_current_cursor)
         pw2.add(self.cursorOutputFrame, stretch='always')
 
         self.fileOutputFrame = CursorFileOutputFrame(pw2)
@@ -1244,11 +1203,15 @@ class OutputFrame(ttk.Frame):
 
     def set_controller(self, controller):
         self._controller = controller
+        self._ast_output_frame.set_controller(controller)
+
+    def sync_from_model(self, model):
+        self._ast_output_frame.sync_from_model(model.ast_model)
 
     # There was a cursor selected at left ASTOutputFrame (TreeView on left).
     def _on_cursor_selection(self):
-        curIID = self.astOutputFrame.get_current_iid()
-        curCursor = self.astOutputFrame.get_current_cursor()
+        curIID = self._ast_output_frame.get_current_iid()
+        curCursor = self._ast_output_frame.get_current_cursor()
         if curIID != self._controller.get_cursor_id():  # do not update history if you currently walk through it
             self._set_active_cursor(curCursor)
             self._add_history(curIID)
@@ -1301,8 +1264,8 @@ class OutputFrame(ttk.Frame):
     def _update_history(self):
         newIID = self.history[self.historyPos]
         self._controller.set_cursor_id(newIID)  # set this before _on_cursor_selection() is called
-        self.astOutputFrame.set_current_iid(newIID)  # this will cause call of _on_cursor_selection()
-        self._set_active_cursor(self.astOutputFrame.get_current_cursor())
+        self._ast_output_frame.set_current_iid(newIID)  # this will cause call of _on_cursor_selection()
+        self._set_active_cursor(self._ast_output_frame.get_current_cursor())
 
     def _update_history_buttons(self):
         hLen = len(self.history)
@@ -1325,22 +1288,22 @@ class OutputFrame(ttk.Frame):
         self.doublesBackwardBtn.config(state='disabled')
 
     def go_doubles_backward(self):
-        iids = self.astOutputFrame.get_current_iids()
+        iids = self._ast_output_frame.get_current_iids()
         if isinstance(iids, list):
             newIdx = (iids.index(self._controller.get_cursor_id()) - 1) % len(iids)
             newIID = iids[newIdx]
-            self.astOutputFrame.set_current_iid(newIID)
+            self._ast_output_frame.set_current_iid(newIID)
 
     def go_doubles_forward(self):
-        iids = self.astOutputFrame.get_current_iids()
+        iids = self._ast_output_frame.get_current_iids()
         if isinstance(iids, list):
             newIdx = (iids.index(self._controller.get_cursor_id()) + 1) % len(iids)
             newIID = iids[newIdx]
-            self.astOutputFrame.set_current_iid(newIID)
+            self._ast_output_frame.set_current_iid(newIID)
 
     # Update buttons states and label value for doubles (some cursors can be found several times in AST).
     def _update_doubles(self):
-        iids = self.astOutputFrame.get_current_iids()
+        iids = self._ast_output_frame.get_current_iids()
         if isinstance(iids, list):
             self.doublesForwardBtn.config(state='normal')
             self.doublesLabel.config(state='normal')
@@ -1357,19 +1320,19 @@ class OutputFrame(ttk.Frame):
         search = SearchDialog(self.winfo_toplevel())
         if search.result:
             data = search.get_data()
-            self.searchResult = self.astOutputFrame.search(**data)
+            self.searchResult = self._ast_output_frame.search(**data)
             self.searchPos = 0
             self._update_search()
             if len(self.searchResult) > 0:
-                self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
+                self._ast_output_frame.set_current_iid(self.searchResult[self.searchPos])
 
     def go_search_backward(self):
         self.searchPos = (self.searchPos - 1) % len(self.searchResult)
-        self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
+        self._ast_output_frame.set_current_iid(self.searchResult[self.searchPos])
 
     def go_search_forward(self):
         self.searchPos = (self.searchPos + 1) % len(self.searchResult)
-        self.astOutputFrame.set_current_iid(self.searchResult[self.searchPos])
+        self._ast_output_frame.set_current_iid(self.searchResult[self.searchPos])
 
     # Update buttons states and label value for search.
     def _update_search(self):
@@ -1417,7 +1380,7 @@ class OutputFrame(ttk.Frame):
             self.marker[num] = self._controller.get_cursor()
             self._update_marker()
         else:
-            self.astOutputFrame.set_current_cursor(self.marker[num])
+            self._ast_output_frame.set_current_cursor(self.marker[num])
 
     # Reset all outputs.
     def clear(self):
@@ -1432,13 +1395,13 @@ class OutputFrame(ttk.Frame):
         self.searchBtn.config(state='disabled')
         self.markerSetBtn.config(state='disabled')
         self._update_marker()
-        self.astOutputFrame.clear()
+        self._ast_output_frame.clear()
         self.cursorOutputFrame.clear()
         self.fileOutputFrame.clear()
 
     def set_translation_unit(self, tu):
         self.clear()
-        self.astOutputFrame.set_translation_unit(tu)
+        self._ast_output_frame.set_translation_unit(tu)
         self.searchBtn.config(state='normal')
 
 

@@ -1,9 +1,9 @@
-#=============================================#
+# ============================================= #
 # Python Clang AST Viewer - View Controller
 #
 # Copyright (C) 2022 Frank Mueller
 # SPDX-License-Identifier: MIT
-#=============================================#
+# ============================================= #
 
 import sys
 
@@ -51,7 +51,7 @@ class OutputFrameController:
 
     def set_translation_unit(self, tu):
         self._model.set_translation_unit(tu)
-        self._view.set_translation_unit(tu)
+        self._view.sync_from_model(self._model)
 
     def get_cursor_id(self):
         return self._model.cur_cursor_id
@@ -64,3 +64,21 @@ class OutputFrameController:
 
     def set_cursor(self, cursor):
         self._model.cur_cursor = cursor
+
+    def set_active_cursor_by_id(self, iid):
+        if iid == self._model.cur_cursor_id:
+            return
+
+        self._model.cur_cursor_id = iid
+        cursor = self._model.ast_model.get_cursor_from_id(iid)
+
+        # ToDo: use MVC concept
+        self._view._set_active_cursor(cursor)
+        self._view._add_history(iid)
+        self._view.curIID = iid
+        # ToDo:
+        self._view._update_doubles()
+        self._view._update_search()
+
+    def on_ast_selection(self, selected_id):
+        self.set_active_cursor_by_id(selected_id)
