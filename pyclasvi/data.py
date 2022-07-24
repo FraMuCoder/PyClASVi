@@ -85,6 +85,24 @@ class InputModel:
 class OutputModel:
     def __init__(self):
         self._translation_unit = None
+        self._cur_cursor_id = ''
+        self._cur_cursor = None
+
+    @property
+    def cur_cursor_id(self):
+        return self._cur_cursor_id
+
+    @cur_cursor_id.setter
+    def cur_cursor_id(self, value):
+        self._cur_cursor_id = value
+
+    @property
+    def cur_cursor(self):
+        return self._cur_cursor
+
+    @cur_cursor.setter
+    def cur_cursor(self, value):
+        self._cur_cursor = value
 
     def set_translation_unit(self, tu):
         self._translation_unit = tu

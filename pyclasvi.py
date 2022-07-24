@@ -1149,8 +1149,6 @@ class OutputFrame(ttk.Frame):
                                                  #                         1: mark current cursor
         self._create_widgets()
 
-        self.curIID = ''        # IID of current marked cursor in TreeView on the left
-        self.curCursor = None
         self.history = []       # history of last visit cursors
         self.historyPos = -1    # current pos in this history, to walk in both directions
         self.searchResult = []
@@ -1251,17 +1249,17 @@ class OutputFrame(ttk.Frame):
     def _on_cursor_selection(self):
         curIID = self.astOutputFrame.get_current_iid()
         curCursor = self.astOutputFrame.get_current_cursor()
-        if curIID != self.curIID:  # do not update history if you currently walk through it
+        if curIID != self._controller.get_cursor_id():  # do not update history if you currently walk through it
             self._set_active_cursor(curCursor)
             self._add_history(curIID)
-            self.curIID = curIID
+            self._controller.set_cursor_id(curIID)
         self._update_doubles()
         self._update_search()
 
     # Set internal active cursor without updating history.
     # This is only called on cursor selection (via ASTOutputFrame) or history walk.
     def _set_active_cursor(self, cursor):
-        self.curCursor = cursor
+        self._controller.set_cursor(cursor)
         self.cursorOutputFrame.set_cursor(cursor)
         self.fileOutputFrame.set_cursor(cursor)
         self.markerSetBtn.config(state='normal')
@@ -1302,7 +1300,7 @@ class OutputFrame(ttk.Frame):
     # Switch to right cursor after walk through history.
     def _update_history(self):
         newIID = self.history[self.historyPos]
-        self.curIID = newIID  # set this before _on_cursor_selection() is called
+        self._controller.set_cursor_id(newIID)  # set this before _on_cursor_selection() is called
         self.astOutputFrame.set_current_iid(newIID)  # this will cause call of _on_cursor_selection()
         self._set_active_cursor(self.astOutputFrame.get_current_cursor())
 
@@ -1329,14 +1327,14 @@ class OutputFrame(ttk.Frame):
     def go_doubles_backward(self):
         iids = self.astOutputFrame.get_current_iids()
         if isinstance(iids, list):
-            newIdx = (iids.index(self.curIID) - 1) % len(iids)
+            newIdx = (iids.index(self._controller.get_cursor_id()) - 1) % len(iids)
             newIID = iids[newIdx]
             self.astOutputFrame.set_current_iid(newIID)
 
     def go_doubles_forward(self):
         iids = self.astOutputFrame.get_current_iids()
         if isinstance(iids, list):
-            newIdx = (iids.index(self.curIID) + 1) % len(iids)
+            newIdx = (iids.index(self._controller.get_cursor_id()) + 1) % len(iids)
             newIID = iids[newIdx]
             self.astOutputFrame.set_current_iid(newIID)
 
@@ -1346,7 +1344,7 @@ class OutputFrame(ttk.Frame):
         if isinstance(iids, list):
             self.doublesForwardBtn.config(state='normal')
             self.doublesLabel.config(state='normal')
-            self.doublesLabel.config(text='{0}/{1}'.format(iids.index(self.curIID) + 1, len(iids)))
+            self.doublesLabel.config(text='{0}/{1}'.format(iids.index(self._controller.get_cursor_id()) + 1, len(iids)))
             self.doublesBackwardBtn.config(state='normal')
         else:
             self._clear_doubles()
@@ -1378,11 +1376,12 @@ class OutputFrame(ttk.Frame):
         cnt = len(self.searchResult)
         if cnt > 0:
             serchIID = self.searchResult[self.searchPos]
-            if self.curIID != serchIID:
-                if self.curIID in self.searchResult:
-                    self.searchPos = self.searchResult.index(self.curIID)
-                    serchIID = self.curIID
-            if self.curIID != serchIID:
+            cur_id = self._controller.get_cursor_id()
+            if cur_id != serchIID:
+                if cur_id in self.searchResult:
+                    self.searchPos = self.searchResult.index(cur_id)
+                    serchIID = cur_id
+            if cur_id != serchIID:
                 self.serachLabel.config(state='disabled')
             else:
                 self.serachLabel.config(state='normal')
@@ -1415,14 +1414,16 @@ class OutputFrame(ttk.Frame):
     def _on_marker_x(self, num):
         if self.markerSetState.get():
             self.markerSetState.set(0)
-            self.marker[num] = self.curCursor
+            self.marker[num] = self._controller.get_cursor()
             self._update_marker()
         else:
             self.astOutputFrame.set_current_cursor(self.marker[num])
 
     # Reset all outputs.
     def clear(self):
-        self.curIID = ''
+        if self._controller is not None:
+            self._controller.set_cursor_id('')
+            self._controller.set_cursor(None)
         self.clear_history()
         self._clear_doubles()
         self.clear_search()

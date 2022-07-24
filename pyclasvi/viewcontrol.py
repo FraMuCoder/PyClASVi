@@ -52,3 +52,15 @@ class OutputFrameController:
     def set_translation_unit(self, tu):
         self._model.set_translation_unit(tu)
         self._view.set_translation_unit(tu)
+
+    def get_cursor_id(self):
+        return self._model.cur_cursor_id
+
+    def set_cursor_id(self, iid):
+        self._model.cur_cursor_id = iid
+
+    def get_cursor(self):
+        return self._model.cur_cursor
+
+    def set_cursor(self, cursor):
+        self._model.cur_cursor = cursor
