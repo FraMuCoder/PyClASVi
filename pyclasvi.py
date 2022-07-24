@@ -1108,8 +1108,6 @@ class OutputFrame(ttk.Frame):
                                                  #                         1: mark current cursor
         self._create_widgets()
 
-        self.history = []       # history of last visit cursors
-        self.historyPos = -1    # current pos in this history, to walk in both directions
         self.searchResult = []
         self.searchPos = -1     # you can also walk through searchResult
         self.marker = []        # marked cursor using the [M#] Buttons
@@ -1117,7 +1115,6 @@ class OutputFrame(ttk.Frame):
             self.marker.append(None)                    # a cursor at position x stored no not (None)
         self.clear()
 
-    _MAX_HISTORY = 25
     _MARKER_BTN_CNT = 5
 
     def _create_widgets(self):
@@ -1129,10 +1126,10 @@ class OutputFrame(ttk.Frame):
         toolbar.grid(row=0, column=0, sticky='we')
 
         self.historyBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                             command=self.go_history_backward)
+                                             command=self.on_history_backward)
         self.historyBackwardBtn.grid(row=0, column=0)
         self.historyForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                            command=self.go_history_forward)
+                                            command=self.on_history_forward)
         self.historyForwardBtn.grid(row=0, column=1)
 
         sep = ttk.Separator(toolbar, orient='vertical')
@@ -1205,81 +1202,38 @@ class OutputFrame(ttk.Frame):
         self._controller = controller
         self._ast_output_frame.set_controller(controller)
 
-    def sync_from_model(self, model):
-        self._ast_output_frame.sync_from_model(model.ast_model)
+    def sync_from_model(self, model, domain=('cursor', 'history',)):
+        if 'ast' in domain:
+            self._ast_output_frame.sync_from_model(model.ast)
+        if 'cursor' in domain:
+            self._sync_cursor_from_model(model)
+        if 'history' in domain:
+            self._sync_history_buttons_from_model(model.history)
 
-    # There was a cursor selected at left ASTOutputFrame (TreeView on left).
-    def _on_cursor_selection(self):
-        curIID = self._ast_output_frame.get_current_iid()
-        curCursor = self._ast_output_frame.get_current_cursor()
-        if curIID != self._controller.get_cursor_id():  # do not update history if you currently walk through it
-            self._set_active_cursor(curCursor)
-            self._add_history(curIID)
-            self._controller.set_cursor_id(curIID)
-        self._update_doubles()
-        self._update_search()
-
-    # Set internal active cursor without updating history.
-    # This is only called on cursor selection (via ASTOutputFrame) or history walk.
-    def _set_active_cursor(self, cursor):
-        self._controller.set_cursor(cursor)
-        self.cursorOutputFrame.set_cursor(cursor)
-        self.fileOutputFrame.set_cursor(cursor)
+    def _sync_cursor_from_model(self, model):
+        self._ast_output_frame.set_current_iid(model.cur_cursor_id)
+        self.cursorOutputFrame.set_cursor(model.cur_cursor)
+        self.fileOutputFrame.set_cursor(model.cur_cursor)
         self.markerSetBtn.config(state='normal')
 
-    def clear_history(self):
-        self.history = []
-        self.historyPos = -1
-        self._update_history_buttons()
-
-    def _add_history(self, iid):
-        if self.historyPos < len(self.history):
-            # we travel backward in time and change the history
-            # so we change the time line and the future
-            # therefore erase the old future
-            self.history = self.history[:(self.historyPos + 1)]
-            # now the future is an empty sheet of paper
-
-        if len(self.history) >= OutputFrame._MAX_HISTORY:  # history to long?
-            self.history = self.history[1:]
-        else:
-            self.historyPos = self.historyPos + 1
-
-        self.history.append(iid)
-        self._update_history_buttons()
-
-    def go_history_backward(self):
-        if self.historyPos > 0:
-            self.historyPos = self.historyPos - 1
-            self._update_history()
-        self._update_history_buttons()
-
-    def go_history_forward(self):
-        if (self.historyPos + 1) < len(self.history):
-            self.historyPos = self.historyPos + 1
-            self._update_history()
-        self._update_history_buttons()
-
-    # Switch to right cursor after walk through history.
-    def _update_history(self):
-        newIID = self.history[self.historyPos]
-        self._controller.set_cursor_id(newIID)  # set this before _on_cursor_selection() is called
-        self._ast_output_frame.set_current_iid(newIID)  # this will cause call of _on_cursor_selection()
-        self._set_active_cursor(self._ast_output_frame.get_current_cursor())
-
-    def _update_history_buttons(self):
-        hLen = len(self.history)
-        hPos = self.historyPos
-
-        if hPos > 0:  # we can go backward
+    def _sync_history_buttons_from_model(self, history):
+        if history.can_go_backward():
             self.historyBackwardBtn.config(state='normal')
         else:
             self.historyBackwardBtn.config(state='disabled')
 
-        if (hLen > 1) and ((hPos + 1) < hLen):  # we can go forward
+        if history.can_go_forward():
             self.historyForwardBtn.config(state='normal')
         else:
             self.historyForwardBtn.config(state='disabled')
+
+    def on_history_backward(self):
+        if self._controller is not None:
+            self._controller.on_history_backward()
+
+    def on_history_forward(self):
+        if self._controller is not None:
+            self._controller.on_history_forward()
 
     def _clear_doubles(self):
         self.doublesForwardBtn.config(state='disabled')
@@ -1387,7 +1341,6 @@ class OutputFrame(ttk.Frame):
         if self._controller is not None:
             self._controller.set_cursor_id('')
             self._controller.set_cursor(None)
-        self.clear_history()
         self._clear_doubles()
         self.clear_search()
         for n in range(0, OutputFrame._MARKER_BTN_CNT):

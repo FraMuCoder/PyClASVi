@@ -95,6 +95,10 @@ class ASTModel:
         self._cnt_max_children = 0
         self._cnt_max_deep = 0
 
+    def clear(self):
+        self.clear_structures()
+        self._root = None
+
     def clear_structures(self):
         self._map_id_to_cursor = {}
         self._map_cursor_to_ID = {}
@@ -127,7 +131,6 @@ class ASTModel:
         print('AST has {0} cursors including {1} doubles.'.format(self._cnt_cursors, self._cnt_doubles))
         print('max doubles: {0}, max children {1}, max deep {2}'.format(
             self._cnt_max_doubles, self._cnt_max_children, self._cnt_max_deep))
-        print('running set_root_cursor done!')
 
     def _traversal_preorder_call(self, **kwargs):
         cursor = kwargs['cursor']
@@ -189,16 +192,77 @@ class ASTModel:
         return self._map_cursor_to_ID[hcursor]
 
 
+class HistoryModel:
+    def __init__(self, max=25):
+        self._history = []
+        self._pos = -1
+        self._MAX_HISTORY = max
+
+    def clear(self):
+        self._history = []
+        self._pos = -1
+
+    @property
+    def length(self):
+        return len(self._history)
+
+    @property
+    def pos(self):
+        return self._pos
+
+    def can_go_backward(self):
+        return self.pos > 0
+
+    def can_go_forward(self):
+        return (self.length > 1) and ((self.pos + 1) < self.length)
+
+    def insert(self, new_elem):
+        if self._pos < len(self._history):
+            # we travel backward in time and change the history,
+            # so we change the timeline and the future
+            # therefore erase the old future
+            self._history = self._history[:(self._pos + 1)]
+            # now the future is an empty sheet of paper
+
+        if len(self._history) >= self._MAX_HISTORY:  # history to long?
+            self._history = self._history[1:]
+        else:
+            self._pos = self._pos + 1
+
+        self._history.append(new_elem)
+
+    def get(self):
+        if self._pos >= 0:
+            return self._history[self._pos]
+        else:
+            return None
+
+    def go_backward(self):
+        if self._pos > 0:
+            self._pos -= 1
+        return self.get()
+
+    def go_forward(self):
+        if (self._pos + 1) < len(self._history):
+            self._pos += 1
+        return self.get()
+
+
 class OutputModel:
     def __init__(self):
         self._translation_unit = None
-        self._ast_model = ASTModel()
+        self._ast = ASTModel()
+        self._history = HistoryModel()
         self._cur_cursor_id = ''
         self._cur_cursor = None
 
     @property
-    def ast_model(self):
-        return self._ast_model
+    def ast(self):
+        return self._ast
+
+    @property
+    def history(self):
+        return self._history
 
     @property
     def cur_cursor_id(self):
@@ -207,6 +271,7 @@ class OutputModel:
     @cur_cursor_id.setter
     def cur_cursor_id(self, value):
         self._cur_cursor_id = value
+        self._cur_cursor = self.ast.get_cursor_from_id(value)
 
     @property
     def cur_cursor(self):
@@ -216,6 +281,11 @@ class OutputModel:
     def cur_cursor(self, value):
         self._cur_cursor = value
 
+    def clear(self):
+        self._ast.clear()
+        self._history.clear()
+
     def set_translation_unit(self, tu):
+        self.clear()
         self._translation_unit = tu
-        self._ast_model.set_root(tu.cursor)
+        self._ast.set_root(tu.cursor)
