@@ -51,7 +51,7 @@ class OutputFrameController:
 
     def set_translation_unit(self, tu):
         self._model.set_translation_unit(tu)
-        self._view.sync_from_model(self._model, domain=('ast', 'cursor', 'history',))
+        self._view.sync_from_model(self._model, domain=('ast',))
 
     def get_cursor_id(self):
         return self._model.cur_cursor_id
@@ -74,7 +74,6 @@ class OutputFrameController:
         if update_history:
             self._model.history.insert(iid)
         # ToDo:
-        self._view._update_doubles()
         self._view._update_search()
 
         self._view.sync_from_model(self._model, domain=('cursor', 'history',))
@@ -91,3 +90,17 @@ class OutputFrameController:
         new_id = self._model.history.go_forward()
         if new_id is not None:
             self.set_active_cursor_by_id(new_id, update_history=False)
+
+    def on_doubles_backward(self):
+        id_list = self._model.ast.get_ids_from_cursor(self._model.cur_cursor)
+        if isinstance(id_list, list):
+            new_idx = (id_list.index(self._model.cur_cursor_id) - 1) % len(id_list)
+            new_id = id_list[new_idx]
+            self.set_active_cursor_by_id(new_id)
+
+    def on_doubles_forward(self):
+        id_list = self._model.ast.get_ids_from_cursor(self._model.cur_cursor)
+        if isinstance(id_list, list):
+            new_idx = (id_list.index(self._model.cur_cursor_id) + 1) % len(id_list)
+            new_id = id_list[new_idx]
+            self.set_active_cursor_by_id(new_id)

@@ -227,21 +227,6 @@ class ASTOutputFrame(ttk.Frame):
     def get_current_iid(self):
         return self.astView.focus()
 
-    # Return a single IID or a list of IIDs.
-    def get_current_iids(self):
-        cursor = self.get_current_cursor()
-        if cursor is not None:
-            return self._model.get_ids_from_cursor(cursor)
-        else:
-            return None
-
-    def get_current_cursor(self):
-        curCursor = None
-        curItem = self.astView.focus()
-        if curItem:
-            curCursor = self._model.get_cursor_from_id(curItem)
-        return curCursor
-
     def set_current_iid(self, iid):
         self.astView.focus(iid)
         self.astView.selection_set(iid)
@@ -1139,12 +1124,12 @@ class OutputFrame(ttk.Frame):
         label.grid(row=0, column=3)
 
         self.doublesBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                             command=self.go_doubles_backward)
+                                             command=self.on_doubles_backward)
         self.doublesBackwardBtn.grid(row=0, column=4)
         self.doublesLabel = ttk.Label(toolbar, text='-/-', width=-3, anchor='center')
         self.doublesLabel.grid(row=0, column=5)
         self.doublesForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                            command=self.go_doubles_forward)
+                                            command=self.on_doubles_forward)
         self.doublesForwardBtn.grid(row=0, column=6)
 
         sep = ttk.Separator(toolbar, orient='vertical')
@@ -1204,6 +1189,7 @@ class OutputFrame(ttk.Frame):
 
     def sync_from_model(self, model, domain=('cursor', 'history',)):
         if 'ast' in domain:
+            self.clear()
             self._ast_output_frame.sync_from_model(model.ast)
         if 'cursor' in domain:
             self._sync_cursor_from_model(model)
@@ -1215,6 +1201,16 @@ class OutputFrame(ttk.Frame):
         self.cursorOutputFrame.set_cursor(model.cur_cursor)
         self.fileOutputFrame.set_cursor(model.cur_cursor)
         self.markerSetBtn.config(state='normal')
+
+        id_list = model.ast.get_ids_from_cursor(model.cur_cursor)
+        if isinstance(id_list, list):
+            self.doublesForwardBtn.config(state='normal')
+            self.doublesLabel.config(state='normal')
+            self.doublesLabel.config(
+                text='{0}/{1}'.format(id_list.index(model.cur_cursor_id) + 1, len(id_list)))
+            self.doublesBackwardBtn.config(state='normal')
+        else:
+            self._clear_doubles()
 
     def _sync_history_buttons_from_model(self, history):
         if history.can_go_backward():
@@ -1241,30 +1237,13 @@ class OutputFrame(ttk.Frame):
         self.doublesLabel.config(text='-/-')
         self.doublesBackwardBtn.config(state='disabled')
 
-    def go_doubles_backward(self):
-        iids = self._ast_output_frame.get_current_iids()
-        if isinstance(iids, list):
-            newIdx = (iids.index(self._controller.get_cursor_id()) - 1) % len(iids)
-            newIID = iids[newIdx]
-            self._ast_output_frame.set_current_iid(newIID)
+    def on_doubles_backward(self):
+        if self._controller is not None:
+            self._controller.on_doubles_backward()
 
-    def go_doubles_forward(self):
-        iids = self._ast_output_frame.get_current_iids()
-        if isinstance(iids, list):
-            newIdx = (iids.index(self._controller.get_cursor_id()) + 1) % len(iids)
-            newIID = iids[newIdx]
-            self._ast_output_frame.set_current_iid(newIID)
-
-    # Update buttons states and label value for doubles (some cursors can be found several times in AST).
-    def _update_doubles(self):
-        iids = self._ast_output_frame.get_current_iids()
-        if isinstance(iids, list):
-            self.doublesForwardBtn.config(state='normal')
-            self.doublesLabel.config(state='normal')
-            self.doublesLabel.config(text='{0}/{1}'.format(iids.index(self._controller.get_cursor_id()) + 1, len(iids)))
-            self.doublesBackwardBtn.config(state='normal')
-        else:
-            self._clear_doubles()
+    def on_doubles_forward(self):
+        if self._controller is not None:
+            self._controller.on_doubles_forward()
 
     def clear_search(self):
         self.searchResult = []
