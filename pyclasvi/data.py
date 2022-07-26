@@ -7,7 +7,9 @@
 
 import clang.cindex
 import ctypes
+import re
 
+from pyclasvi.utils import toStr
 from pyclasvi.utils import join
 from pyclasvi.algorithm import traverse_cursor
 
@@ -191,6 +193,99 @@ class ASTModel:
         hcursor = HashableObj(cursor)
         return self._map_cursor_to_ID[hcursor]
 
+    def search(self, **kwargs):
+        result = []
+        use_cursor_kind = kwargs['use_CursorKind']
+        cursor_kind = kwargs['CursorKind']
+        spelling = kwargs['spelling']
+        case_insensitive = kwargs['caseInsensitive']
+        use_regex = kwargs['use_RexEx']
+        if use_regex:
+            re_flags = 0
+            if case_insensitive:
+                re_flags = re.IGNORECASE
+            try:
+                re_obj = re.compile(spelling, re_flags)
+            except re.error as e:
+                # ToDo: Error message ('Search RegEx', str(e))
+                return result
+        elif case_insensitive:
+            spelling = spelling.lower()
+
+        for iid, cursor in self._map_id_to_cursor.items():
+            found = True
+            if use_cursor_kind:
+                found = cursor_kind == cursor.kind.name
+            if found:
+                if use_regex:
+                    if not re_obj.match(toStr(cursor.spelling)):
+                        found = False
+                elif case_insensitive:
+                    found = spelling == toStr(cursor.spelling).lower()
+                else:
+                    found = spelling == toStr(cursor.spelling)
+            if found:
+                result.append(iid)
+
+        return WalkableList(result)
+
+
+class WalkableList:
+    def __init__(self, data):
+        if data:
+            self._data = data
+        else:
+            self._data = []
+        self._pos = 0
+
+    def clear(self):
+        self._data = []
+        self._pos = 0
+
+    def get_current(self):
+        if self.length >= 0:
+            return self._data[self._pos]
+        else:
+            return None
+
+    @property
+    def length(self):
+        return len(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+    def __contains__(self, value):
+        return value in self._data
+
+    def __getitem__(self, index):
+        return self._data[index]
+
+    def __iter__(self):
+        return iter(self._data)
+
+    @property
+    def pos(self):
+        return self._pos
+
+    def set_pos_to_element(self, element):
+        if element in self._data:
+            self._pos = self._data.index(element)
+
+    def can_go_backward(self):
+        return self.pos > 0
+
+    def can_go_forward(self):
+        return (self.length > 1) and ((self.pos + 1) < self.length)
+
+    def go_backward(self):
+        self._pos = (self._pos - 1) % self.length
+        return self.get_current()
+
+    def go_forward(self):
+        self._pos = (self._pos + 1) % self.length
+        return self.get_current()
+
 
 class HistoryModel:
     def __init__(self, max=25):
@@ -252,9 +347,10 @@ class OutputModel:
     def __init__(self):
         self._translation_unit = None
         self._ast = ASTModel()
-        self._history = HistoryModel()
         self._cur_cursor_id = ''
         self._cur_cursor = None
+        self._history = HistoryModel()
+        self._search_result = None
 
     @property
     def ast(self):
@@ -280,6 +376,14 @@ class OutputModel:
     @cur_cursor.setter
     def cur_cursor(self, value):
         self._cur_cursor = value
+
+    @property
+    def search_result(self):
+        return self._search_result
+
+    @search_result.setter
+    def search_result(self, value):
+        self._search_result = value
 
     def clear(self):
         self._ast.clear()

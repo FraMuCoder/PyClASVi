@@ -253,47 +253,6 @@ class ASTOutputFrame(ttk.Frame):
                             text=toStr(cursor),
                             tags=['default'])
 
-    # Search for IIDs matching to Cursors matching to kwargs.
-    def search(self, **kwargs):
-        result = []
-        useCursorKind = kwargs['use_CursorKind']
-        cursorKind = kwargs['CursorKind']
-        spelling = kwargs['spelling']
-        caseInsensitive = kwargs['caseInsensitive']
-        useRegEx = kwargs['use_RexEx']
-        if useRegEx:
-            reFlags = 0
-            if caseInsensitive:
-                reFlags = re.IGNORECASE
-            try:
-                reObj = re.compile(spelling, reFlags)
-            except Exception as e:
-                tkMessageBox.showerror('Search RegEx', str(e))
-                return result
-        elif caseInsensitive:
-            spelling = spelling.lower()
-
-        for iid in self.mapIIDtoCursor:
-            cursor = self.mapIIDtoCursor[iid]
-            found = True
-            if useCursorKind:
-                found = cursorKind == cursor.kind.name
-            if found:
-                if useRegEx:
-                    if not reObj.match(toStr(cursor.spelling)):
-                        found = False
-
-                elif caseInsensitive:
-                    found = spelling == toStr(cursor.spelling).lower()
-                else:
-                    found = spelling == toStr(cursor.spelling)
-            if found:
-                result.append(iid)
-
-        result.sort()
-
-        return result
-
 
 # Helper class to represent un-/folded sections in Text widget of CursorOutputFrame.
 # One node is of type FoldSection.
@@ -1093,8 +1052,6 @@ class OutputFrame(ttk.Frame):
                                                  #                         1: mark current cursor
         self._create_widgets()
 
-        self.searchResult = []
-        self.searchPos = -1     # you can also walk through searchResult
         self.marker = []        # marked cursor using the [M#] Buttons
         for n in range(0, OutputFrame._MARKER_BTN_CNT): # list must have fixed size to check if there is
             self.marker.append(None)                    # a cursor at position x stored no not (None)
@@ -1111,10 +1068,10 @@ class OutputFrame(ttk.Frame):
         toolbar.grid(row=0, column=0, sticky='we')
 
         self.historyBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                             command=self.on_history_backward)
+                                             command=self._on_history_backward)
         self.historyBackwardBtn.grid(row=0, column=0)
         self.historyForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                            command=self.on_history_forward)
+                                            command=self._on_history_forward)
         self.historyForwardBtn.grid(row=0, column=1)
 
         sep = ttk.Separator(toolbar, orient='vertical')
@@ -1124,12 +1081,12 @@ class OutputFrame(ttk.Frame):
         label.grid(row=0, column=3)
 
         self.doublesBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                             command=self.on_doubles_backward)
+                                             command=self._on_doubles_backward)
         self.doublesBackwardBtn.grid(row=0, column=4)
         self.doublesLabel = ttk.Label(toolbar, text='-/-', width=-3, anchor='center')
         self.doublesLabel.grid(row=0, column=5)
         self.doublesForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                            command=self.on_doubles_forward)
+                                            command=self._on_doubles_forward)
         self.doublesForwardBtn.grid(row=0, column=6)
 
         sep = ttk.Separator(toolbar, orient='vertical')
@@ -1139,12 +1096,12 @@ class OutputFrame(ttk.Frame):
                                     command=self._on_search)
         self.searchBtn.grid(row=0, column=8)
         self.searchBackwardBtn = ttk.Button(toolbar, text='<', width=-3, style='Toolbutton',
-                                            command=self.go_search_backward)
+                                            command=self._on_search_backward)
         self.searchBackwardBtn.grid(row=0, column=9)
         self.serachLabel = ttk.Label(toolbar, text='-/-', width=-7, anchor='center')
         self.serachLabel.grid(row=0, column=10)
         self.searchForwardBtn = ttk.Button(toolbar, text='>', width=-3, style='Toolbutton',
-                                           command=self.go_search_forward)
+                                           command=self._on_search_forward)
         self.searchForwardBtn.grid(row=0, column=11)
 
         sep = ttk.Separator(toolbar, orient='vertical')
@@ -1191,10 +1148,13 @@ class OutputFrame(ttk.Frame):
         if 'ast' in domain:
             self.clear()
             self._ast_output_frame.sync_from_model(model.ast)
+            self.searchBtn.config(state='normal')
         if 'cursor' in domain:
             self._sync_cursor_from_model(model)
         if 'history' in domain:
             self._sync_history_buttons_from_model(model.history)
+        if 'search' in domain:
+            self._sync_search_from_model(model)
 
     def _sync_cursor_from_model(self, model):
         self._ast_output_frame.set_current_iid(model.cur_cursor_id)
@@ -1223,13 +1183,47 @@ class OutputFrame(ttk.Frame):
         else:
             self.historyForwardBtn.config(state='disabled')
 
-    def on_history_backward(self):
+    def _sync_search_from_model(self, model):
+        if model.search_result:
+            search_id = model.search_result.get_current()
+            cur_id = model.cur_cursor_id
+            if cur_id != search_id:
+                self.serachLabel.config(state='disabled')
+            else:
+                self.serachLabel.config(state='normal')
+            self.searchForwardBtn.config(state='normal')
+            self.serachLabel.config(text='{0}/{1}'.format(model.search_result.pos + 1, model.search_result.length))
+            self.searchBackwardBtn.config(state='normal')
+        else:
+            self._clear_search()
+
+    def _on_history_backward(self):
         if self._controller is not None:
             self._controller.on_history_backward()
 
-    def on_history_forward(self):
+    def _on_history_forward(self):
         if self._controller is not None:
             self._controller.on_history_forward()
+
+    def _on_doubles_backward(self):
+        if self._controller is not None:
+            self._controller.on_doubles_backward()
+
+    def _on_doubles_forward(self):
+        if self._controller is not None:
+            self._controller.on_doubles_forward()
+
+    def _on_search_backward(self):
+        if self._controller is not None:
+            self._controller.on_search_backward()
+
+    def _on_search_forward(self):
+        if self._controller is not None:
+            self._controller.on_search_forward()
+
+    def _clear_history(self):
+        self.historyBackwardBtn.config(state='disabled')
+        self.historyForwardBtn.config(state='disabled')
 
     def _clear_doubles(self):
         self.doublesForwardBtn.config(state='disabled')
@@ -1237,58 +1231,18 @@ class OutputFrame(ttk.Frame):
         self.doublesLabel.config(text='-/-')
         self.doublesBackwardBtn.config(state='disabled')
 
-    def on_doubles_backward(self):
-        if self._controller is not None:
-            self._controller.on_doubles_backward()
-
-    def on_doubles_forward(self):
-        if self._controller is not None:
-            self._controller.on_doubles_forward()
-
-    def clear_search(self):
-        self.searchResult = []
-        self._update_search()
+    def _clear_search(self):
+        self.searchForwardBtn.config(state='disabled')
+        self.serachLabel.config(state='disabled')
+        self.serachLabel.config(text='-/-')
+        self.searchBackwardBtn.config(state='disabled')
 
     def _on_search(self):
-        search = SearchDialog(self.winfo_toplevel())
-        if search.result:
-            data = search.get_data()
-            self.searchResult = self._ast_output_frame.search(**data)
-            self.searchPos = 0
-            self._update_search()
-            if len(self.searchResult) > 0:
-                self._ast_output_frame.set_current_iid(self.searchResult[self.searchPos])
-
-    def go_search_backward(self):
-        self.searchPos = (self.searchPos - 1) % len(self.searchResult)
-        self._ast_output_frame.set_current_iid(self.searchResult[self.searchPos])
-
-    def go_search_forward(self):
-        self.searchPos = (self.searchPos + 1) % len(self.searchResult)
-        self._ast_output_frame.set_current_iid(self.searchResult[self.searchPos])
-
-    # Update buttons states and label value for search.
-    def _update_search(self):
-        cnt = len(self.searchResult)
-        if cnt > 0:
-            serchIID = self.searchResult[self.searchPos]
-            cur_id = self._controller.get_cursor_id()
-            if cur_id != serchIID:
-                if cur_id in self.searchResult:
-                    self.searchPos = self.searchResult.index(cur_id)
-                    serchIID = cur_id
-            if cur_id != serchIID:
-                self.serachLabel.config(state='disabled')
-            else:
-                self.serachLabel.config(state='normal')
-            self.searchForwardBtn.config(state='normal')
-            self.serachLabel.config(text='{0}/{1}'.format(self.searchPos + 1, cnt))
-            self.searchBackwardBtn.config(state='normal')
-        else:
-            self.searchForwardBtn.config(state='disabled')
-            self.serachLabel.config(state='disabled')
-            self.serachLabel.config(text='-/-')
-            self.searchBackwardBtn.config(state='disabled')
+        if self._controller is not None:
+            search = SearchDialog(self.winfo_toplevel())
+            if search.result:
+                data = search.get_data()
+                self._controller.on_search(**data)
 
     # Update button states for marker.
     def _update_marker(self):
@@ -1317,11 +1271,9 @@ class OutputFrame(ttk.Frame):
 
     # Reset all outputs.
     def clear(self):
-        if self._controller is not None:
-            self._controller.set_cursor_id('')
-            self._controller.set_cursor(None)
+        self._clear_history()
         self._clear_doubles()
-        self.clear_search()
+        self._clear_search()
         for n in range(0, OutputFrame._MARKER_BTN_CNT):
             self.marker[n] = None
         self.searchBtn.config(state='disabled')
@@ -1330,11 +1282,6 @@ class OutputFrame(ttk.Frame):
         self._ast_output_frame.clear()
         self.cursorOutputFrame.clear()
         self.fileOutputFrame.clear()
-
-    def set_translation_unit(self, tu):
-        self.clear()
-        self._ast_output_frame.set_translation_unit(tu)
-        self.searchBtn.config(state='normal')
 
 
 # Main window combine all frames in tabs an contains glue logic between these frames

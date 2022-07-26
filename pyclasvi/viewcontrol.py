@@ -73,10 +73,10 @@ class OutputFrameController:
 
         if update_history:
             self._model.history.insert(iid)
-        # ToDo:
-        self._view._update_search()
+        if self._model.search_result:
+            self._model.search_result.set_pos_to_element(iid)
 
-        self._view.sync_from_model(self._model, domain=('cursor', 'history',))
+        self._view.sync_from_model(self._model, domain=('cursor', 'history', 'search',))
 
     def on_ast_selection(self, selected_id):
         self.set_active_cursor_by_id(selected_id)
@@ -104,3 +104,19 @@ class OutputFrameController:
             new_idx = (id_list.index(self._model.cur_cursor_id) + 1) % len(id_list)
             new_id = id_list[new_idx]
             self.set_active_cursor_by_id(new_id)
+
+    def on_search(self, **kwargs):
+        self._model.search_result = self._model.ast.search(**kwargs)
+        new_id = self._model.search_result.get_current()
+        if (new_id is not None) and (new_id != self._model.cur_cursor_id):
+            self.set_active_cursor_by_id(new_id)
+        else:
+            self._view.sync_from_model(self._model, domain=('search',))
+
+    def on_search_backward(self):
+        new_id = self._model.search_result.go_backward()
+        self.set_active_cursor_by_id(new_id)
+
+    def on_search_forward(self):
+        new_id = self._model.search_result.go_forward()
+        self.set_active_cursor_by_id(new_id)
