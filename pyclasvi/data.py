@@ -343,6 +343,27 @@ class HistoryModel:
         return self.get()
 
 
+class MarkerModel:
+    def __init__(self):
+        self._marker = []
+
+    def clear(self):
+        self._marker = []
+
+    def __getitem__(self, index):
+        if (index < 0) or (index >= len(self._marker)):
+            return None
+        else:
+            return self._marker[index]
+
+    def __setitem__(self, index, value):
+        if index < 0:
+            return
+        while index >= len(self._marker):
+            self._marker.append(None)
+        self._marker[index] = value
+
+
 class OutputModel:
     def __init__(self):
         self._translation_unit = None
@@ -351,6 +372,7 @@ class OutputModel:
         self._cur_cursor = None
         self._history = HistoryModel()
         self._search_result = None
+        self._marker = MarkerModel()
 
     @property
     def ast(self):
@@ -385,9 +407,15 @@ class OutputModel:
     def search_result(self, value):
         self._search_result = value
 
+    @property
+    def marker(self):
+        return self._marker
+
     def clear(self):
         self._ast.clear()
         self._history.clear()
+        self._search_result = None
+        self._marker.clear()
 
     def set_translation_unit(self, tu):
         self.clear()

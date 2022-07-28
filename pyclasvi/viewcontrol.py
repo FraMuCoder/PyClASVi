@@ -120,3 +120,14 @@ class OutputFrameController:
     def on_search_forward(self):
         new_id = self._model.search_result.go_forward()
         self.set_active_cursor_by_id(new_id)
+
+    def on_marker_store(self, index):
+        self._model.marker[index] = self._model.cur_cursor_id
+        self._view.sync_from_model(self._model, domain=('marker',))
+
+    def on_marker_restore(self, index):
+        self.set_active_cursor_by_id(self._model.marker[index])
+        self._view.sync_from_model(self._model, domain=('marker',))
+
+    def request_update(self, domain):
+        self._view.sync_from_model(self._model, domain=domain)

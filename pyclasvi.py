@@ -1052,9 +1052,6 @@ class OutputFrame(ttk.Frame):
                                                  #                         1: mark current cursor
         self._create_widgets()
 
-        self.marker = []        # marked cursor using the [M#] Buttons
-        for n in range(0, OutputFrame._MARKER_BTN_CNT): # list must have fixed size to check if there is
-            self.marker.append(None)                    # a cursor at position x stored no not (None)
         self.clear()
 
     _MARKER_BTN_CNT = 5
@@ -1144,7 +1141,7 @@ class OutputFrame(ttk.Frame):
         self._controller = controller
         self._ast_output_frame.set_controller(controller)
 
-    def sync_from_model(self, model, domain=('cursor', 'history',)):
+    def sync_from_model(self, model, domain=('ast', 'cursor', 'history', 'search', 'marker',)):
         if 'ast' in domain:
             self.clear()
             self._ast_output_frame.sync_from_model(model.ast)
@@ -1155,6 +1152,8 @@ class OutputFrame(ttk.Frame):
             self._sync_history_buttons_from_model(model.history)
         if 'search' in domain:
             self._sync_search_from_model(model)
+        if 'marker' in domain:
+            self._sync_marker_from_model(model.marker)
 
     def _sync_cursor_from_model(self, model):
         self._ast_output_frame.set_current_iid(model.cur_cursor_id)
@@ -1197,6 +1196,13 @@ class OutputFrame(ttk.Frame):
         else:
             self._clear_search()
 
+    def _sync_marker_from_model(self, marker):
+        for n in range(0, OutputFrame._MARKER_BTN_CNT):
+            if marker[n] is not None:
+                self.markerBtns[n].config(state='normal')
+            else:
+                self.markerBtns[n].config(state='disabled')
+
     def _on_history_backward(self):
         if self._controller is not None:
             self._controller.on_history_backward()
@@ -1237,6 +1243,10 @@ class OutputFrame(ttk.Frame):
         self.serachLabel.config(text='-/-')
         self.searchBackwardBtn.config(state='disabled')
 
+    def _clear_marker(self):
+        for n in range(0, OutputFrame._MARKER_BTN_CNT):
+            self.markerBtns[n].config(state='disabled')
+
     def _on_search(self):
         if self._controller is not None:
             search = SearchDialog(self.winfo_toplevel())
@@ -1244,41 +1254,32 @@ class OutputFrame(ttk.Frame):
                 data = search.get_data()
                 self._controller.on_search(**data)
 
-    # Update button states for marker.
-    def _update_marker(self):
-        for n in range(0, OutputFrame._MARKER_BTN_CNT):
-            if self.marker[n] is not None:
-                self.markerBtns[n].config(state='normal')
-            else:
-                self.markerBtns[n].config(state='disabled')
-
     # [MS] clicked
     def _on_marker_set(self):
-        if self.markerSetState.get():
-            for btn in self.markerBtns:
-                btn.config(state='normal')
-        else:
-            self._update_marker()
+        if self._controller is not None:
+            if self.markerSetState.get():
+                for btn in self.markerBtns:
+                    btn.config(state='normal')
+            else:
+                self._controller.request_update(domain=('marker',))
 
     # [M#] clicked
     def _on_marker_x(self, num):
-        if self.markerSetState.get():
-            self.markerSetState.set(0)
-            self.marker[num] = self._controller.get_cursor()
-            self._update_marker()
-        else:
-            self._ast_output_frame.set_current_cursor(self.marker[num])
+        if self._controller is not None:
+            if self.markerSetState.get():
+                self.markerSetState.set(0)
+                self._controller.on_marker_store(num)
+            else:
+                self._controller.on_marker_restore(num)
 
     # Reset all outputs.
     def clear(self):
         self._clear_history()
         self._clear_doubles()
         self._clear_search()
-        for n in range(0, OutputFrame._MARKER_BTN_CNT):
-            self.marker[n] = None
         self.searchBtn.config(state='disabled')
         self.markerSetBtn.config(state='disabled')
-        self._update_marker()
+        self._clear_marker()
         self._ast_output_frame.clear()
         self.cursorOutputFrame.clear()
         self.fileOutputFrame.clear()
