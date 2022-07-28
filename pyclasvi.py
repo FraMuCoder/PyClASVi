@@ -185,75 +185,6 @@ class ErrorFrame(ttk.Frame):
         return len(self.errors)
 
 
-# Widget to show the AST in a Treeview like folders in a file browser
-# This widget is the master for current selected Cursor object.
-# If you want to show an other Cursor call set_current_cursor(...)
-class ASTOutputFrame(ttk.Frame):
-    def __init__(self, master=None, selectCmd=None):
-        ttk.Frame.__init__(self, master)
-        self.grid(sticky='nswe')
-        self._create_widgets()
-        self._controller = None
-        self._model = None  # ToDo: remove later
-
-    def _create_widgets(self):
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
-
-        charSize = tkFont.nametofont('TkFixedFont').measure('#')
-
-        self.astView = ttk.Treeview(self, selectmode='browse')
-        self.astView.tag_configure('default', font='TkFixedFont')
-        self.astView.bind('<<TreeviewSelect>>', self._on_selection)
-
-        make_scrollable(self, self.astView)
-
-        self.astView.heading('#0', text='Cursor')
-        self.astView.grid(row=0, column=0, sticky='nswe')
-
-    def set_controller(self, controller):
-        self._controller = controller
-
-    def sync_from_model(self, model):
-        self._model = model
-        self.clear()
-        model.traverse(self._insert_children)
-
-    def _on_selection(self, event):
-        if self._controller is not None:
-            iid = self.astView.focus()
-            self._controller.on_ast_selection(iid)
-
-    def get_current_iid(self):
-        return self.astView.focus()
-
-    def set_current_iid(self, iid):
-        self.astView.focus(iid)
-        self.astView.selection_set(iid)
-        self.astView.see(iid)
-
-    def set_current_cursor(self, cursor):
-        iid = self._model.get_ids_from_cursor(cursor)
-        if isinstance(iid, list): # partly multimap
-            iid = iid[0]
-        self.set_current_iid(iid)
-
-    def clear(self):
-        for i in self.astView.get_children():
-            self.astView.delete(i)
-
-    def _insert_children(self, **kwargs):
-        cursor = kwargs['cursor']
-        p_id = kwargs['parent_id']
-        c_id = kwargs['cursor_id']
-
-        self.astView.insert(p_id,
-                            'end',
-                            iid=c_id,
-                            text=toStr(cursor),
-                            tags=['default'])
-
-
 # Helper class to represent un-/folded sections in Text widget of CursorOutputFrame.
 # One node is of type FoldSection.
 # No Node will be removed even if a new selected cursor object have less section.
@@ -1121,15 +1052,12 @@ class OutputFrame(ttk.Frame):
         pw1 = tk.PanedWindow(self, orient='horizontal')
         pw1.grid(row=1, column=0, sticky='nswe')
 
-        self._ast_output_frame = ASTOutputFrame(pw1)
+        self._ast_output_frame = pyclasvi.view.ASTOutputFrame(pw1, select_cmd=self._on_cursor_selection)
         pw1.add(self._ast_output_frame, stretch='always')
 
         pw2 = tk.PanedWindow(pw1, orient='vertical')
 
-        # remark ASTOutputFrame is the master for current selected cursor but you can click on a link
-        # to other cursors in CursorOutputFrame, this must be forwarded to ASTOutputFrame.set_current_cursor
-        self.cursorOutputFrame = CursorOutputFrame(pw2,
-                                                   selectCmd=self._ast_output_frame.set_current_cursor)
+        self.cursorOutputFrame = CursorOutputFrame(pw2, selectCmd=self._on_cursor_selection)
         pw2.add(self.cursorOutputFrame, stretch='always')
 
         self.fileOutputFrame = CursorFileOutputFrame(pw2)
@@ -1139,7 +1067,6 @@ class OutputFrame(ttk.Frame):
 
     def set_controller(self, controller):
         self._controller = controller
-        self._ast_output_frame.set_controller(controller)
 
     def sync_from_model(self, model, domain=('ast', 'cursor', 'history', 'search', 'marker',)):
         if 'ast' in domain:
@@ -1156,7 +1083,7 @@ class OutputFrame(ttk.Frame):
             self._sync_marker_from_model(model.marker)
 
     def _sync_cursor_from_model(self, model):
-        self._ast_output_frame.set_current_iid(model.cur_cursor_id)
+        self._ast_output_frame.set_current_id(model.cur_cursor_id)
         self.cursorOutputFrame.set_cursor(model.cur_cursor)
         self.fileOutputFrame.set_cursor(model.cur_cursor)
         self.markerSetBtn.config(state='normal')
@@ -1202,6 +1129,10 @@ class OutputFrame(ttk.Frame):
                 self.markerBtns[n].config(state='normal')
             else:
                 self.markerBtns[n].config(state='disabled')
+
+    def _on_cursor_selection(self, selection):
+        if self._controller is not None:
+            self._controller.on_cursor_selection(selection)
 
     def _on_history_backward(self):
         if self._controller is not None:

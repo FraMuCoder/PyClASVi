@@ -20,6 +20,7 @@ else: # python3
     import tkinter.filedialog as tkFileDialog
     import tkinter.messagebox as tkMessageBox
 
+from pyclasvi.utils import toStr
 from pyclasvi.utils import join
 
 
@@ -247,3 +248,60 @@ class InputFrame(ttk.Frame):
                 args.append(arg)
 
         return args
+
+
+# Widget to show the AST in a Treeview like folders in a file browser
+class ASTOutputFrame(ttk.Frame):
+    def __init__(self, master=None, select_cmd=None):
+        ttk.Frame.__init__(self, master)
+        self.grid(sticky='nswe')
+        self._create_widgets()
+        self._select_cmd = select_cmd
+
+    def _create_widgets(self):
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+
+        self._ast_view = ttk.Treeview(self, selectmode='browse')
+        self._ast_view.tag_configure('default', font='TkFixedFont')
+        self._ast_view.bind('<<TreeviewSelect>>', self._on_selection)
+
+        make_scrollable(self, self._ast_view)
+
+        self._ast_view.heading('#0', text='Cursor')
+        self._ast_view.grid(row=0, column=0, sticky='nswe')
+
+    def set_select_cmd(self, select_cmd):
+        self._select_cmd = select_cmd
+
+    def sync_from_model(self, model):
+        self.clear()
+        model.traverse(self._insert_children)
+
+    def _on_selection(self, event):
+        if self._select_cmd is not None:
+            iid = self._ast_view.focus()
+            self._select_cmd(iid)
+
+    def get_current_id(self):
+        return self._ast_view.focus()
+
+    def set_current_id(self, iid):
+        self._ast_view.focus(iid)
+        self._ast_view.selection_set(iid)
+        self._ast_view.see(iid)
+
+    def clear(self):
+        for i in self._ast_view.get_children():
+            self._ast_view.delete(i)
+
+    def _insert_children(self, **kwargs):
+        cursor = kwargs['cursor']
+        p_id = kwargs['parent_id']
+        c_id = kwargs['cursor_id']
+
+        self._ast_view.insert(p_id,
+                              'end',
+                              iid=c_id,
+                              text=toStr(cursor),
+                              tags=['default'])

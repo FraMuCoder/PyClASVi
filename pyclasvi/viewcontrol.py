@@ -6,6 +6,7 @@
 # ============================================= #
 
 import sys
+import clang.cindex
 
 if sys.version_info.major == 2:
     import tkMessageBox
@@ -78,8 +79,17 @@ class OutputFrameController:
 
         self._view.sync_from_model(self._model, domain=('cursor', 'history', 'search',))
 
-    def on_ast_selection(self, selected_id):
-        self.set_active_cursor_by_id(selected_id)
+    def on_cursor_selection(self, selection):
+        """Called if a new Cursor was selected by the view.
+
+        Parameters:
+            selection: Selected Cursor as Cursor itself or Cursor ID
+        """
+        if isinstance(selection, clang.cindex.Cursor):
+            selection = self._model.ast.get_ids_from_cursor(selection)
+            if isinstance(selection, list):  # partly multimap
+                selection = selection[0]
+        self.set_active_cursor_by_id(selection)
 
     def on_history_backward(self):
         new_id = self._model.history.go_backward()
