@@ -117,16 +117,27 @@ def make_scrollable(parent, widget, widgetRow=0, widgetColumn=0):
         hsb.grid(row=widgetRow+1, column=widgetColumn, sticky='we')
 
 
+class AppOptions:
+    """Hold application options (passed around to various components)"""
+    def __init__(self, filename, auto_parse, parse_options, parse_cmd=None):
+        self.filename = filename
+        self.auto_parse = auto_parse
+        self.parse_options = parse_options
+        self.parse_cmd = parse_cmd
+
+
 # Widget to handle all inputs (file name and parameters).
 # Contain [Parse] Button to start parsing and fill result in output frames
 class InputFrame(ttk.Frame):
-    def __init__(self, master=None, parseCmd=None):
+    def __init__(self, options, master=None):
         ttk.Frame.__init__(self, master)
         self.grid(sticky='nswe')
-        self.parseCmd = parseCmd
+        self.parseCmd = options.parse_cmd
         self.filename = tk.StringVar(value='')
         self.xValue = tk.StringVar(value=InputFrame._X_OPTIONS[0])       # Option starting with "-x"
         self.stdValue = tk.StringVar(value=InputFrame._STD_OPTIONS[0])   # Option starting with "-std"
+        self.parseoptValue = tk.StringVar(value=options.parse_options)   # Option starting with default parsing options
+
         self._create_widgets()
 
     _SOURCEFILETYPES = (
@@ -183,6 +194,13 @@ class InputFrame(ttk.Frame):
         '-std=c++2a',
         '-std=gnu++2a'
         )
+    _PARSE_OPTIONS = {
+        'Default'                     : clang.cindex.TranslationUnit.PARSE_NONE,
+        'Detailed Processing'         : clang.cindex.TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD,
+        'Incomplete'                  : clang.cindex.TranslationUnit.PARSE_INCOMPLETE,
+        'Create precompiled preamble' : clang.cindex.TranslationUnit.PARSE_PRECOMPILED_PREAMBLE,
+        'Skip function bodies'        : clang.cindex.TranslationUnit.PARSE_SKIP_FUNCTION_BODIES
+        }
 
     def _create_widgets(self):
         self.rowconfigure(4, weight=1)
@@ -205,15 +223,20 @@ class InputFrame(ttk.Frame):
         button = ttk.Button(buttonFrame, text='+ Define', command=self._on_define)
         button.grid(row=0, column=1)
 
-        xCBox = ttk.Combobox(buttonFrame, textvariable=self.xValue, 
+        xCBox = ttk.Combobox(buttonFrame, textvariable=self.xValue,
                 values=InputFrame._X_OPTIONS)
         xCBox.bind('<<ComboboxSelected>>', self._on_select_x)
         xCBox.grid(row=0, column=2)
 
-        stdCBox = ttk.Combobox(buttonFrame, textvariable=self.stdValue, 
+        stdCBox = ttk.Combobox(buttonFrame, textvariable=self.stdValue,
                 values=InputFrame._STD_OPTIONS)
         stdCBox.bind('<<ComboboxSelected>>', self._on_select_std)
         stdCBox.grid(row=0, column=3)
+
+        ttk.Label(buttonFrame, text=' Parsing mode: ').grid(row=0, column=4, sticky='w')
+        parseOptCBox = ttk.Combobox(buttonFrame, textvariable=self.parseoptValue,
+                values=list(InputFrame._PARSE_OPTIONS.keys()))
+        parseOptCBox.grid(row=0, column=5)
 
         self.argsText = tk.Text(self, wrap='none')
         self.argsText.grid(row=4, sticky='nswe')
@@ -278,6 +301,11 @@ class InputFrame(ttk.Frame):
             arg = None
         self.set_arg('-std', arg)
 
+    @staticmethod
+    def get_parse_options(text):
+        """Convert text value of a parse options to actual flag value"""
+        return InputFrame._PARSE_OPTIONS.get(text, clang.cindex.TranslationUnit.PARSE_NONE)
+
     def set_parse_cmd(self, parseCmd):
         self.parseCmd = parseCmd
 
@@ -295,7 +323,7 @@ class InputFrame(ttk.Frame):
         i = 0
         for arg in args:
             if arg[:len(name)] == name:
-                break;
+                break
             i += 1
 
         newArgs = args[:i]
@@ -379,7 +407,7 @@ class ErrorFrame(ttk.Frame):
 
         label = tk.Label(buttonFrame, text='Filter:')
         label.grid(row=0, column=0)
-        filterCBox = ttk.Combobox(buttonFrame, textvariable=self.filterValue, 
+        filterCBox = ttk.Combobox(buttonFrame, textvariable=self.filterValue,
             values=ErrorFrame._DIAG_STR_TAB)
         filterCBox.bind('<<ComboboxSelected>>', self._filter)
         filterCBox.grid(row=0, column=1)
@@ -937,7 +965,7 @@ class CursorOutputFrame(ttk.Frame):
         # we got an exception if we compare a Cursor object with an other none Cursor object like None
         # Therfore Cursor == None will not work so we use a try
         if isinstance(cursor, clang.cindex.Cursor):
-            self.cursorText.insert('end', 
+            self.cursorText.insert('end',
                                 toStr(cursor),
                                 'link')
             self.cursorList.append(cursor)
@@ -1083,7 +1111,7 @@ class CursorOutputFrame(ttk.Frame):
             self.cursorText.insert('end', join(prefix, CursorOutputFrame._DATA_INDENT))
             self._add_cursor(attrData)
             self.cursorText.insert('end', '\n')
-        elif (isinstance(attrData, clang.cindex.Type) 
+        elif (isinstance(attrData, clang.cindex.Type)
               or isinstance(attrData, clang.cindex.SourceRange)
               or isinstance(attrData, clang.cindex.Token)):
             if isIterData:
@@ -1522,7 +1550,7 @@ class OutputFrame(ttk.Frame):
 
         # remark ASTOutputFrame is the master for current selected cursor but you can click on a link
         # to other cursors in CursorOutputFrame, this must be forwarded to ASTOutputFrame.set_current_cursor
-        self.cursorOutputFrame = CursorOutputFrame(pw2, 
+        self.cursorOutputFrame = CursorOutputFrame(pw2,
                                                    selectCmd=self.astOutputFrame.set_current_cursor)
         pw2.add(self.cursorOutputFrame, stretch='always')
 
@@ -1727,17 +1755,18 @@ class OutputFrame(ttk.Frame):
 
 # Main window combine all frames in tabs an contains glue logic between these frames
 class Application(ttk.Frame):
-    def __init__(self, master=None, file=None, auto_parse=False):
+    def __init__(self, options, master=None):
         ttk.Frame.__init__(self, master)
         self._set_style()
         self.grid(sticky='nswe')
-        self._create_widgets()
+        options.parse_cmd = self._on_parse
+        self._create_widgets(options)
 
         self.index = clang.cindex.Index.create()
 
-        if file:
-            self.inputFrame.load_filename(file)
-            if auto_parse:
+        if options.filename:
+            self.inputFrame.load_filename(options.filename)
+            if options.auto_parse:
                 self._on_parse()
         else:
             self.inputFrame.set_filename('select file to parse =>')
@@ -1747,7 +1776,7 @@ class Application(ttk.Frame):
                                       '-I/more/include/path'])
 
 
-    def _create_widgets(self):
+    def _create_widgets(self, options):
         top=self.winfo_toplevel()
         top.rowconfigure(0, weight=1)
         top.columnconfigure(0, weight=1)
@@ -1757,7 +1786,7 @@ class Application(ttk.Frame):
 
         self.notebook = ttk.Notebook(self)
 
-        self.inputFrame = InputFrame(self.notebook, parseCmd=self._on_parse)
+        self.inputFrame = InputFrame(options, self.notebook)
 
         self.errorFrame = ErrorFrame(self.notebook)
         self.outputFrame = OutputFrame(self.notebook)
@@ -1782,7 +1811,10 @@ class Application(ttk.Frame):
         self.outputFrame.clear()
         fileName = self.inputFrame.get_filename()
         args = self.inputFrame.get_args()
-        tu = self.index.parse(fileName, args=args)
+        tu = self.index.parse(
+            fileName,
+            args=args,
+            options=InputFrame.get_parse_options(self.inputFrame.parseoptValue.get()))
 
         cntErr = self.errorFrame.set_errors(tu.diagnostics)
         self.outputFrame.set_translationunit(tu)
@@ -1796,7 +1828,9 @@ class Application(ttk.Frame):
 def main():
     parser = argparse.ArgumentParser(description='Python Clang AST Viewer')
     parser.add_argument('-l', '--libfile', help='select Clang library file', nargs=1, dest='libFile')
-    parser.add_argument('-p', '--parse', help='automatically parse the input file', action='store_true', dest='parse')
+    parser.add_argument('-p', '--auto-parse', help='automatically parse the input file', action='store_true', dest='auto_parse')
+    parser.add_argument('-f', '--parse-options', dest='parse_options', default='Default',
+                        help=f'specify parse options ({", ".join(InputFrame._PARSE_OPTIONS.keys())})')
     parser.add_argument('file', help='''Text file containing input data,
                         1st line = file to parse,
                         next lines = Clang arguments, one argument per line''',
@@ -1806,7 +1840,11 @@ def main():
     if args.libFile:
         clang.cindex.Config.set_library_file(args.libFile[0])
 
-    app = Application(file=args.file, auto_parse=args.parse)
+    app = Application(AppOptions(
+                        filename=args.file,
+                        auto_parse=args.auto_parse,
+                        parse_options=args.parse_options))
+
     app.master.title('PyClASVi')
     app.mainloop()
 
