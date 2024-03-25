@@ -71,14 +71,13 @@ def is_instance_methode(m):
 
 # has this instance methode only the self parameter?
 def is_simple_instance_methode(m):
-    argSpec = inspect.getargspec(m)
+    argSpec = inspect.getfullargspec(m)
     return len(argSpec.args) == 1 # only self
 
 
 # get methode definition like "(arg1, arg2)" as string
 def get_methode_prototype(m):
-    argSpec = inspect.getargspec(m)
-    return inspect.formatargspec(*argSpec)
+    return str(inspect.signature(m))
 
 
 # check if obj is in list
